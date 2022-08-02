@@ -50,13 +50,12 @@ def try_to_resolve_api_client():
             # load from kubernetes config file
             kube_config.load_kube_config()
         except:  # noqa: E722
-            if "KUBE_API_ADDRESS" in os.environ:
-                # try to load from env `KUBE_API_ADDRESS`
-                config = kube_client.Configuration()
-                config.host = os.environ["KUBE_API_ADDRESS"]
-                return kube_client.ApiClient(config)
-            else:
+            if "KUBE_API_ADDRESS" not in os.environ:
                 raise RuntimeError("Resolve kube api client failed.")
+            # try to load from env `KUBE_API_ADDRESS`
+            config = kube_client.Configuration()
+            config.host = os.environ["KUBE_API_ADDRESS"]
+            return kube_client.ApiClient(config)
     return kube_client.ApiClient()
 
 
@@ -67,9 +66,7 @@ def parse_readable_memory(value):
     try:
         float(num)
     except ValueError as e:
-        raise ValueError(
-            "Argument cannot be interpreted as a number: %s" % value
-        ) from e
+        raise ValueError(f"Argument cannot be interpreted as a number: {value}") from e
     if suffix not in ["Ki", "Mi", "Gi"]:
         raise ValueError("Memory suffix must be one of 'Ki', 'Mi' and 'Gi': %s" % value)
     return value
@@ -102,24 +99,24 @@ def wait_for_deployment_complete(api_client, namespace, name, timeout_seconds=60
             and s.observed_generation >= response.metadata.generation
         ):
             return True
-        else:
             # check failed
-            selector = ""
-            for k, v in response.spec.selector.match_labels.items():
-                selector += k + "=" + v + ","
-            selector = selector[:-1]
-            pods = core_api.list_namespaced_pod(
-                namespace=namespace, label_selector=selector
-            )
-            for pod in pods.items:
-                if pod.status.container_statuses is not None:
-                    for container_status in pod.status.container_statuses:
-                        if (
+        selector = "".join(
+            f"{k}={v}," for k, v in response.spec.selector.match_labels.items()
+        )
+
+        selector = selector[:-1]
+        pods = core_api.list_namespaced_pod(
+            namespace=namespace, label_selector=selector
+        )
+        for pod in pods.items:
+            if pod.status.container_statuses is not None:
+                for container_status in pod.status.container_statuses:
+                    if (
                             not container_status.ready
                             and container_status.restart_count > 0
                         ):
-                            raise K8sError("Deployment {} start failed.".format(name))
-    raise TimeoutError("Waiting timeout for deployment {}".format(name))
+                        raise K8sError(f"Deployment {name} start failed.")
+    raise TimeoutError(f"Waiting timeout for deployment {name}")
 
 
 class KubernetesPodWatcher(object):
@@ -135,17 +132,13 @@ class KubernetesPodWatcher(object):
         self._container = container
 
         self._pod_name = pod.metadata.name
-        if queue is None:
-            self._lines = Queue()
-        else:
-            self._lines = queue
-
+        self._lines = Queue() if queue is None else queue
         self._stream_event_thread = None
         self._stream_log_thread = None
         self._stopped = True
 
     def _stream_event_impl(self, simple=False):
-        field_selector = "involvedObject.name=" + self._pod_name
+        field_selector = f"involvedObject.name={self._pod_name}"
 
         event_messages = []
         while not self._stopped:
@@ -166,7 +159,7 @@ class KubernetesPodWatcher(object):
                         self._lines.put(msg)
                         logger.info(msg, extra={"simple": simple})
                         if event.reason == "Failed":
-                            raise K8sError("Kubernetes event error: {}".format(msg))
+                            raise K8sError(f"Kubernetes event error: {msg}")
 
     def _stream_log_impl(self, simple=False):
         log_messages = []
@@ -211,9 +204,7 @@ class KubernetesPodWatcher(object):
                 self._stream_event_thread.is_alive()
                 or self._stream_log_thread.is_alive()
             ):
-                raise TimeoutError(
-                    "Pod watcher thread joined timeout: {}.".format(self._pod_name)
-                )
+                raise TimeoutError(f"Pod watcher thread joined timeout: {self._pod_name}.")
 
 
 def get_service_endpoints(api_client, namespace, name, type, timeout_seconds=60):
@@ -248,19 +239,15 @@ def get_service_endpoints(api_client, namespace, name, type, timeout_seconds=60)
     svc = core_api.read_namespaced_service(name=name, namespace=namespace)
 
     # get pods
-    selector = ""
-    for k, v in svc.spec.selector.items():
-        selector += k + "=" + v + ","
+    selector = "".join(f"{k}={v}," for k, v in svc.spec.selector.items())
     selector = selector[:-1]
     pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=selector)
 
     ips = []
     ports = []
     if type == "NodePort":
-        for pod in pods.items:
-            ips.append(pod.status.host_ip)
-        for port in svc.spec.ports:
-            ports.append(port.node_port)
+        ips.extend(pod.status.host_ip for pod in pods.items)
+        ports.extend(port.node_port for port in svc.spec.ports)
     elif type == "LoadBalancer":
         while True:
             svc = core_api.read_namespaced_service(name=name, namespace=namespace)
@@ -270,16 +257,14 @@ def get_service_endpoints(api_client, namespace, name, type, timeout_seconds=60)
                         ips.append(ingress.hostname)
                     else:
                         ips.append(ingress.ip)
-                for port in svc.spec.ports:
-                    ports.append(port.port)
+                ports.extend(port.port for port in svc.spec.ports)
                 break
             time.sleep(1)
             if time.time() - start_time > timeout_seconds:
                 raise TimeoutError("LoadBalancer service type is not supported yet.")
     elif type == "ClusterIP":
         ips.append(svc.spec.cluster_ip)
-        for port in svc.spec.ports:
-            ports.append(port.port)
+        ports.extend(port.port for port in svc.spec.ports)
     else:
         raise K8sError("Service type {0} is not supported yet".format(type))
 
@@ -290,8 +275,7 @@ def get_service_endpoints(api_client, namespace, name, type, timeout_seconds=60)
         raise K8sError("Get {0} service {1} failed.".format(type, name))
 
     for ip in ips:
-        for port in ports:
-            endpoints.append("{0}:{1}".format(ip, port))
+        endpoints.extend("{0}:{1}".format(ip, port) for port in ports)
     return endpoints
 
 

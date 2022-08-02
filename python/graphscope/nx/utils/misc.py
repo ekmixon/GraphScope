@@ -48,8 +48,7 @@ def empty_graph_in_engine(graph, directed, distributed):
         efile="",
         vfile="",
     )
-    graph_def = op.eval()
-    return graph_def
+    return op.eval()
 
 
 def parse_ret_as_dict(func):
@@ -57,7 +56,7 @@ def parse_ret_as_dict(func):
         r = json.loads(func(*args, **kwargs))
         if not isinstance(r, list):
             return r
-        ret = dict()
+        ret = {}
         for i in range(len(r[0])):
             key = tuple(r[0][i]) if isinstance(r[0][i], list) else r[0][i]
             ret[key] = r[1][i]
@@ -82,15 +81,16 @@ def check_node_is_legal(n):
     def check_node_type(n):
         if not isinstance(n, (int, float, str, bool, type(None))):
             raise NetworkXError(
-                "Node %s is illegal. Type of node must be one of [int, float, str, bool, NoneType]"
-                % (n,)
+                f"Node {n} is illegal. Type of node must be one of [int, float, str, bool, NoneType]"
             )
+
 
     if isinstance(n, tuple):
         if len(n) != 2 or not isinstance(n[0], str):
             raise NetworkXError(
-                "Labeled node %s must be a 2-tuple and label must be str" % (n,)
+                f"Labeled node {n} must be a 2-tuple and label must be str"
             )
+
         else:
             check_node_type(n[1])
     else:

@@ -132,8 +132,7 @@ class GRAPECompiler(ast.NodeVisitor):
         for node in ast.walk(tree):
             for child in ast.iter_child_nodes(node):
                 setattr(child, "__parent__", node)
-        cyast = self.visit(tree)
-        return cyast
+        return self.visit(tree)
 
     def run(self, func_or_ast, pyx_header):
         self.__pyx_header = pyx_header
@@ -149,8 +148,7 @@ class GRAPECompiler(ast.NodeVisitor):
             cyast = self.parse(inspect.getsource(func_or_ast))
 
         writer = patch_cython_codewriter(CodeWriter())
-        cycode = "\n".join(writer.write(cyast).lines)
-        return cycode
+        return "\n".join(writer.write(cyast).lines)
 
     def compile(self, source):
         """Compile source into cython code."""
@@ -292,7 +290,7 @@ class GRAPECompiler(ast.NodeVisitor):
         return ["", 0, 0]
 
     def generic_visit(self, node):
-        raise NotImplementedError("AST node %s is not supported yet" % node)
+        raise NotImplementedError(f"AST node {node} is not supported yet")
 
     def visit_Module(self, node):
         body = self.visit(node.body[0])
@@ -335,7 +333,7 @@ class GRAPECompiler(ast.NodeVisitor):
             return BytesNode(self.loc(node), value=node.s)
         if node.value is None:
             return NoneNode(self.loc(node))
-        raise NotImplementedError("Unknown constant value: %s" % node)
+        raise NotImplementedError(f"Unknown constant value: {node}")
 
     def visit_Num(self, node):
         if isinstance(node.n, int):
@@ -344,7 +342,7 @@ class GRAPECompiler(ast.NodeVisitor):
             return FloatNode(self.loc(node), value=str(node.n))
         if isinstance(node.n, complex):
             raise NotImplementedError("Not support complex constant yet")
-        raise NotImplementedError("Unknown constant value: %s" % node)
+        raise NotImplementedError(f"Unknown constant value: {node}")
 
     def visit_Str(self, node):
         return StringNode(
@@ -507,27 +505,26 @@ class GRAPECompiler(ast.NodeVisitor):
             return PrimaryCmpNode(
                 self.loc(node), operator=operator, operand1=operand1, operand2=operand2
             )
-        else:
-            # multiple continuous comparison
+        # multiple continuous comparison
+        cascade_node = CascadedCmpNode(
+            self.loc(node),
+            operator=self.visit(node.ops[-1]),
+            operand2=self.visit(node.comparators[-1]),
+        )
+        for op, comparator in zip(node.ops[-2:0:-1], node.comparators[-2:0:-1]):
             cascade_node = CascadedCmpNode(
                 self.loc(node),
-                operator=self.visit(node.ops[-1]),
-                operand2=self.visit(node.comparators[-1]),
-            )
-            for op, comparator in zip(node.ops[-2:0:-1], node.comparators[-2:0:-1]):
-                cascade_node = CascadedCmpNode(
-                    self.loc(node),
-                    operator=self.visit(op),
-                    operand2=self.visit(comparator),
-                    cascade=cascade_node,
-                )
-            return PrimaryCmpNode(
-                self.loc(node),
-                operator=operator,
-                operand1=operand1,
-                operand2=operand2,
+                operator=self.visit(op),
+                operand2=self.visit(comparator),
                 cascade=cascade_node,
             )
+        return PrimaryCmpNode(
+            self.loc(node),
+            operator=operator,
+            operand1=operand1,
+            operand2=operand2,
+            cascade=cascade_node,
+        )
 
     def visit_Eq(self, node):
         return "=="
@@ -625,9 +622,9 @@ class GRAPECompiler(ast.NodeVisitor):
                 raise ValueError("Params within aggregate incorrect.")
             if str(args[0].s) not in self.__registed_aggregators.keys():
                 raise KeyError(
-                    "Aggregator %s not exist, you may want to register first."
-                    % str(args[0].s)
+                    f"Aggregator {str(args[0].s)} not exist, you may want to register first."
                 )
+
             ctype = PregelAggregatorType.extract_ctype(
                 self.__registed_aggregators[str(args[0].s)]
             )
@@ -651,9 +648,9 @@ class GRAPECompiler(ast.NodeVisitor):
                 raise ValueError("Params within get_aggregated_value incorrect.")
             if str(args[0].s) not in self.__registed_aggregators.keys():
                 raise KeyError(
-                    "Aggregator %s not exist, you may want to register first."
-                    % str(args[0].s)
+                    f"Aggregator {str(args[0].s)} not exist, you may want to register first."
                 )
+
             ctype = PregelAggregatorType.extract_ctype(
                 self.__registed_aggregators[str(args[0].s)]
             )
@@ -685,15 +682,8 @@ class GRAPECompiler(ast.NodeVisitor):
         if self.__is_graphscope_api_call(node):
             return self.__visit_GraphScopeAPICall(node)
 
-        if not node.keywords:
-            return SimpleCallNode(
-                self.loc(node),
-                function=self.visit(node.func),
-                args=[self.visit(arg) for arg in node.args],
-            )
-        else:
-            # with kwargs param
-            return GeneralCallNode(
+        return (
+            GeneralCallNode(
                 self.loc(node),
                 function=self.visit(node.func),
                 positional_args=TupleNode(
@@ -702,11 +692,16 @@ class GRAPECompiler(ast.NodeVisitor):
                 # keyword_args=DictNode(self.loc(node), key_value_pairs=[]))
                 keyword_args=self._visit_keywords(node.keywords),
             )
+            if node.keywords
+            else SimpleCallNode(
+                self.loc(node),
+                function=self.visit(node.func),
+                args=[self.visit(arg) for arg in node.args],
+            )
+        )
 
     def _visit_keywords(self, node):
-        kvs = []
-        for keyword in node:
-            kvs.append(self.visit_keyword(keyword))
+        kvs = [self.visit_keyword(keyword) for keyword in node]
         return DictNode(self.loc(node), key_value_pairs=kvs, reject_duplicates=True)
 
     def visit_keyword(self, node):
@@ -723,14 +718,13 @@ class GRAPECompiler(ast.NodeVisitor):
 
     def visit_Attribute(self, node):
         full_attr_name = self.__flatten_func_name(node)
-        if full_attr_name[0] == "context" and full_attr_name[1] == "math":
-            mnode = copy.copy(node)
-            mnode.value = ast.Name(id="math")
-            return self.visit(mnode)
-        else:
+        if full_attr_name[0] != "context" or full_attr_name[1] != "math":
             return AttributeNode(
                 self.loc(node), obj=self.visit(node.value), attribute=node.attr
             )
+        mnode = copy.copy(node)
+        mnode.value = ast.Name(id="math")
+        return self.visit(mnode)
 
     def visit_Subscript(self, node):
         return IndexNode(
@@ -756,7 +750,7 @@ class GRAPECompiler(ast.NodeVisitor):
     def visit_ListComp(self, node):
         check_argument(len(node.generators) == 1)
         # has if node or not
-        has_if = True if node.generators[0].ifs else False
+        has_if = bool(node.generators[0].ifs)
         expression_value = self.visit(node.elt)
         generator = node.generators[0]
         iter_value = IteratorNode(
@@ -803,7 +797,7 @@ class GRAPECompiler(ast.NodeVisitor):
     def visit_SetComp(self, node):
         assert len(node.generators) == 1
         # has if node or not
-        has_if = True if node.generators[0].ifs else False
+        has_if = bool(node.generators[0].ifs)
         expression_value = self.visit(node.elt)
         generator = node.generators[0]
         iter_value = IteratorNode(
@@ -846,7 +840,7 @@ class GRAPECompiler(ast.NodeVisitor):
     def visit_DictComp(self, node):
         assert len(node.generators) == 1
         # has if node or not
-        has_if = True if node.generators[0].ifs else False
+        has_if = bool(node.generators[0].ifs)
         generator = node.generators[0]
         iter_value = IteratorNode(
             self.loc(generator.iter), sequence=self.visit(generator.iter)
@@ -921,10 +915,7 @@ class GRAPECompiler(ast.NodeVisitor):
     def visit_ExceptHandler(self, node):
         if node.type:
             pattern = [self.visit(node.type)]
-            if node.name:
-                target = NameNode(self.loc(node), name=node.name)
-            else:
-                target = None
+            target = NameNode(self.loc(node), name=node.name) if node.name else None
         else:
             pattern = None
             target = None
@@ -1225,10 +1216,7 @@ class GRAPECompiler(ast.NodeVisitor):
         )
 
     def visit_Return(self, node):
-        if node.value is None:
-            value = None
-        else:
-            value = self.visit(node.value)
+        value = None if node.value is None else self.visit(node.value)
         return ReturnStatNode(self.loc(node), value=value)
 
     def visit_Yield(self, node):

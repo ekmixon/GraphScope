@@ -44,10 +44,7 @@ class LoadingProgressTracker:
 class StdStreamWrapper(object):
     def __init__(self, std_stream, queue=None, drop=True):
         self._stream_backup = std_stream
-        if queue is None:
-            self._lines = Queue()
-        else:
-            self._lines = queue
+        self._lines = Queue() if queue is None else queue
         self._drop = drop
 
     @property
@@ -105,11 +102,7 @@ class PipeWatcher(object):
         self._pipe = pipe
         self._sink = sink
         self._drop = drop
-        if queue is None:
-            self._lines = Queue()
-        else:
-            self._lines = queue
-
+        self._lines = Queue() if queue is None else queue
         def read_and_poll(self):
             for line in self._pipe:
                 try:

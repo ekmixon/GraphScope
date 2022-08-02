@@ -104,6 +104,8 @@ class DAGManager(object):
         return self._split_dag_def_queue.empty()
 
     def get_next_dag(self):
-        if not self._split_dag_def_queue.empty():
-            return self._split_dag_def_queue.get()
-        return None
+        return (
+            None
+            if self._split_dag_def_queue.empty()
+            else self._split_dag_def_queue.get()
+        )

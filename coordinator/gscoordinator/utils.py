@@ -89,14 +89,14 @@ DEFAULT_GRAPHSCOPE_HOME = "/opt/graphscope"
 GRAPHSCOPE_HOME = os.environ.get("GRAPHSCOPE_HOME", None)
 
 # resolve from pip installed package
-if GRAPHSCOPE_HOME is None:
-    if os.path.isdir(os.path.join(COORDINATOR_HOME, "graphscope.runtime")):
-        GRAPHSCOPE_HOME = os.path.join(COORDINATOR_HOME, "graphscope.runtime")
+if GRAPHSCOPE_HOME is None and os.path.isdir(
+    os.path.join(COORDINATOR_HOME, "graphscope.runtime")
+):
+    GRAPHSCOPE_HOME = os.path.join(COORDINATOR_HOME, "graphscope.runtime")
 
 # find from DEFAULT_GRAPHSCOPE_HOME
-if GRAPHSCOPE_HOME is None:
-    if os.path.isdir(DEFAULT_GRAPHSCOPE_HOME):
-        GRAPHSCOPE_HOME = DEFAULT_GRAPHSCOPE_HOME
+if GRAPHSCOPE_HOME is None and os.path.isdir(DEFAULT_GRAPHSCOPE_HOME):
+    GRAPHSCOPE_HOME = DEFAULT_GRAPHSCOPE_HOME
 
 # resolve from develop source tree
 if GRAPHSCOPE_HOME is None:
@@ -129,10 +129,10 @@ def get_timestamp():
 
 def get_lib_path(app_dir, app_name):
     lib_path = ""
-    if sys.platform == "linux" or sys.platform == "linux2":
-        lib_path = os.path.join(app_dir, "lib%s.so" % app_name)
+    if sys.platform in ["linux", "linux2"]:
+        lib_path = os.path.join(app_dir, f"lib{app_name}.so")
     elif sys.platform == "darwin":
-        lib_path = os.path.join(app_dir, "lib%s.dylib" % app_name)
+        lib_path = os.path.join(app_dir, f"lib{app_name}.dylib")
     else:
         raise RuntimeError(f"Unsupported platform {sys.platform}")
     return lib_path
@@ -153,12 +153,11 @@ def get_app_sha256(attr):
         return hashlib.sha256(
             f"{app_type}.{app_class}.{graph_type}".encode("utf-8")
         ).hexdigest()
-    else:
-        s = hashlib.sha256()
-        s.update(f"{app_type}.{app_class}.{graph_type}".encode("utf-8"))
-        if types_pb2.GAR in attr:
-            s.update(attr[types_pb2.GAR].s)
-        return s.hexdigest()
+    s = hashlib.sha256()
+    s.update(f"{app_type}.{app_class}.{graph_type}".encode("utf-8"))
+    if types_pb2.GAR in attr:
+        s.update(attr[types_pb2.GAR].s)
+    return s.hexdigest()
 
 
 def get_graph_sha256(attr):
@@ -231,9 +230,9 @@ def compile_app(workspace: str, library_name, attr, engine_config: dict):
             os.path.join(app_dir, f"{pxd_name}.pxd"),
         )
         # Assume the gar will have and only have one .pyx file
-        for pyx_file in glob.glob(app_dir + "/*.pyx"):
+        for pyx_file in glob.glob(f"{app_dir}/*.pyx"):
             module_name = os.path.splitext(os.path.basename(pyx_file))[0]
-            cc_file = os.path.join(app_dir, module_name + ".cc")
+            cc_file = os.path.join(app_dir, f"{module_name}.cc")
             subprocess.check_call(["cython", "-3", "--cplus", "-o", cc_file, pyx_file])
         app_header = f"{module_name}.h"
 
@@ -322,10 +321,10 @@ def compile_graph_frame(workspace: str, library_name, attr: dict, engine_config:
     ]
     if graph_type == graph_def_pb2.ARROW_PROPERTY:
         cmake_commands += ["-DPROPERTY_GRAPH_FRAME=True"]
-    elif (
-        graph_type == graph_def_pb2.ARROW_PROJECTED
-        or graph_type == graph_def_pb2.DYNAMIC_PROJECTED
-    ):
+    elif graph_type in [
+        graph_def_pb2.ARROW_PROJECTED,
+        graph_def_pb2.DYNAMIC_PROJECTED,
+    ]:
         cmake_commands += ["-DPROJECT_FRAME=True"]
     else:
         raise ValueError(f"Illegal graph type: {graph_type}")
@@ -916,18 +915,16 @@ def _transform_labeled_vertex_data_v(schema, label, prop):
     label_id = schema.get_vertex_label_id(label)
     if prop == "id":
         return f"label{label_id}.{prop}"
-    else:
-        prop_id = schema.get_vertex_property_id(label, prop)
-        return f"label{label_id}.property{prop_id}"
+    prop_id = schema.get_vertex_property_id(label, prop)
+    return f"label{label_id}.property{prop_id}"
 
 
 def _transform_labeled_vertex_data_e(schema, label, prop):
     label_id = schema.get_edge_label_id(label)
     if prop in ("src", "dst"):
         return f"label{label_id}.{prop}"
-    else:
-        prop_id = schema.get_vertex_property_id(label, prop)
-        return f"label{label_id}.property{prop_id}"
+    prop_id = schema.get_vertex_property_id(label, prop)
+    return f"label{label_id}.property{prop_id}"
 
 
 def _transform_labeled_vertex_data_r(schema, label):
@@ -950,7 +947,7 @@ def transform_vertex_data_selector(selector):
         raise RuntimeError("selector cannot be None")
     segments = selector.split(".")
     if len(segments) > 2:
-        raise SyntaxError("Invalid selector: %s." % selector)
+        raise SyntaxError(f"Invalid selector: {selector}.")
     if segments[0] == "v":
         selector = _transform_vertex_data_v(selector)
     elif segments[0] == "e":
@@ -1004,7 +1001,7 @@ def transform_labeled_vertex_data_selector(schema, selector):
         ret = _transform_labeled_vertex_data_e(schema, *segments)
     elif ret_type == "r":
         ret = _transform_labeled_vertex_data_r(schema, *segments)
-    return "{}:{}".format(ret_type, ret)
+    return f"{ret_type}:{ret}"
 
 
 def transform_labeled_vertex_property_data_selector(schema, selector):
@@ -1124,31 +1121,20 @@ def _codegen_graph_info(attr):
     # graph_type is a literal of graph template in c++ side
     if graph_class == "vineyard::ArrowFragment":
         # in a format of full qualified name, e.g. vineyard::ArrowFragment<double, double>
-        graph_fqn = "{}<{},{}>".format(
-            graph_class,
-            attr[types_pb2.OID_TYPE].s.decode("utf-8"),
-            attr[types_pb2.VID_TYPE].s.decode("utf-8"),
-        )
+        graph_fqn = f'{graph_class}<{attr[types_pb2.OID_TYPE].s.decode("utf-8")},{attr[types_pb2.VID_TYPE].s.decode("utf-8")}>'
+
     elif graph_class in (
         "gs::ArrowProjectedFragment",
         "grape::ImmutableEdgecutFragment",
     ):
         # in a format of gs::ArrowProjectedFragment<int64_t, uint32_t, double, double>
         # or grape::ImmutableEdgecutFragment<int64_t, uint32_t, double, double>
-        graph_fqn = "{}<{},{},{},{}>".format(
-            graph_class,
-            attr[types_pb2.OID_TYPE].s.decode("utf-8"),
-            attr[types_pb2.VID_TYPE].s.decode("utf-8"),
-            attr[types_pb2.V_DATA_TYPE].s.decode("utf-8"),
-            attr[types_pb2.E_DATA_TYPE].s.decode("utf-8"),
-        )
+        graph_fqn = f'{graph_class}<{attr[types_pb2.OID_TYPE].s.decode("utf-8")},{attr[types_pb2.VID_TYPE].s.decode("utf-8")},{attr[types_pb2.V_DATA_TYPE].s.decode("utf-8")},{attr[types_pb2.E_DATA_TYPE].s.decode("utf-8")}>'
+
     else:
         # gs::DynamicProjectedFragment<double, double>
-        graph_fqn = "{}<{},{}>".format(
-            graph_class,
-            attr[types_pb2.V_DATA_TYPE].s.decode("utf-8"),
-            attr[types_pb2.E_DATA_TYPE].s.decode("utf-8"),
-        )
+        graph_fqn = f'{graph_class}<{attr[types_pb2.V_DATA_TYPE].s.decode("utf-8")},{attr[types_pb2.E_DATA_TYPE].s.decode("utf-8")}>'
+
     return graph_header, graph_fqn
 
 
@@ -1164,40 +1150,44 @@ def create_single_op_dag(op_type, config=None):
 
 
 def dump_as_json(schema, path):
-    out = {}
     items = []
     idx = 0
     for i in range(len(schema.vertex_labels)):
-        vertex = {"id": idx, "label": schema.vertex_labels[i], "type": "VERTEX"}
-        vertex["propertyDefList"] = []
+        vertex = {
+            "id": idx,
+            "label": schema.vertex_labels[i],
+            "type": "VERTEX",
+            "propertyDefList": [],
+        }
+
         for j in range(len(schema.vertex_property_names[i].s)):
             names = schema.vertex_property_names[i]
             types = schema.vertex_property_types[i]
             vertex["propertyDefList"].append(
                 {"id": j, "name": names.s[j], "data_type": types.s[j].upper()}
             )
-        vertex["indexes"] = []
-        vertex["indexes"].append({"propertyNames": [names.s[0]]})
+        vertex["indexes"] = [{"propertyNames": [names.s[0]]}]
         items.append(vertex)
         idx += 1
 
     for i in range(len(schema.edge_labels)):
-        edge = {"id": idx, "label": schema.edge_labels[i], "type": "EDGE"}
-        edge["propertyDefList"] = []
+        edge = {
+            "id": idx,
+            "label": schema.edge_labels[i],
+            "type": "EDGE",
+            "propertyDefList": [],
+        }
+
         for j in range(len(schema.edge_property_names[i].s)):
             names = schema.edge_property_names[i]
             types = schema.edge_property_types[i]
             edge["propertyDefList"].append(
                 {"id": j, "name": names.s[j], "data_type": types.s[j].upper()}
             )
-        edge["rawRelationShips"] = []
-        edge["rawRelationShips"].append(
-            {"srcVertexLabel": "xx", "dstVertexLabel": "xx"}
-        )
+        edge["rawRelationShips"] = [{"srcVertexLabel": "xx", "dstVertexLabel": "xx"}]
         idx += 1
         items.append(edge)
-    out["types"] = items
-    out["partitionNum"] = 4
+    out = {"types": items, "partitionNum": 4}
     with open(path, "w") as fp:
         json.dump(out, fp)
 
@@ -1224,7 +1214,7 @@ def parse_as_glog_level(log_level):
     # log level in glog: INFO=1, DEBUG=10
     # log level in python: DEBUG=10, INFO=20
     if isinstance(log_level, str):
-        if log_level == "silent" or log_level == "SILENT":
+        if log_level in ["silent", "SILENT"]:
             log_level = -1
         else:
             log_level = getattr(logging, log_level.upper())
@@ -1235,9 +1225,7 @@ def parse_as_glog_level(log_level):
 def str2bool(s):
     if isinstance(s, bool):
         return s
-    if s.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    return False
+    return s.lower() in ("yes", "true", "t", "y", "1")
 
 
 class ResolveMPICmdPrefix(object):
@@ -1298,18 +1286,17 @@ class ResolveMPICmdPrefix(object):
         assert host_list_len != 0
 
         host_to_proc_num = {}
-        if num_workers >= host_list_len:
-            quotient = num_workers / host_list_len
-            residue = num_workers % host_list_len
-            for host in host_list:
-                if residue > 0:
-                    host_to_proc_num[host] = quotient + 1
-                    residue -= 1
-                else:
-                    host_to_proc_num[host] = quotient
-        else:
+        if num_workers < host_list_len:
             raise RuntimeError("The number of hosts less then num_workers")
 
+        quotient = num_workers / host_list_len
+        residue = num_workers % host_list_len
+        for host in host_list:
+            if residue > 0:
+                host_to_proc_num[host] = quotient + 1
+                residue -= 1
+            else:
+                host_to_proc_num[host] = quotient
         for i in range(host_list_len):
             host_list[i] = f"{host_list[i]}:{host_to_proc_num[host_list[i]]}"
 
@@ -1319,7 +1306,7 @@ class ResolveMPICmdPrefix(object):
         cmd = []
         env = {}
 
-        if num_workers == 1 and (hosts == "localhost" or hosts == "127.0.0.1"):
+        if num_workers == 1 and hosts in ["localhost", "127.0.0.1"]:
             # run without mpi on localhost if workers num is 1
             return cmd, env
 
@@ -1344,9 +1331,7 @@ class ResolveMPICmdPrefix(object):
         else:
             # ssh agent supported only
             cmd.extend(["mpirun"])
-        cmd.extend(["-n", str(num_workers)])
-        cmd.extend(["-host", self.alloc(num_workers, hosts)])
-
+        cmd.extend(["-n", str(num_workers), "-host", self.alloc(num_workers, hosts)])
         logger.debug("Resolve mpi cmd prefix: %s", " ".join(cmd))
         logger.debug("Resolve mpi env: %s", json.dumps(env))
         return cmd, env
@@ -1432,7 +1417,7 @@ def get_gl_handle(schema, vineyard_id, engine_hosts, engine_config):
                 labeled = "true"
         return weighted, labeled, i, f, s, attr_types
 
-    node_schema, node_attribute_types = [], dict()
+    node_schema, node_attribute_types = [], {}
     for label in schema.vertex_labels:
         weighted, labeled, i, f, s, attr_types = group_property_types(
             schema.get_vertex_properties(label)
@@ -1442,7 +1427,7 @@ def get_gl_handle(schema, vineyard_id, engine_hosts, engine_config):
         )
         node_attribute_types[label] = attr_types
 
-    edge_schema, edge_attribute_types = [], dict()
+    edge_schema, edge_attribute_types = [], {}
     for label in schema.edge_labels:
         weighted, labeled, i, f, s, attr_types = group_property_types(
             schema.get_edge_properties(label)
@@ -1530,12 +1515,10 @@ def get_java_version():
 def check_gremlin_server_ready(endpoint):
     from gremlin_python.driver.client import Client
 
-    if "MY_POD_NAME" in os.environ:
-        # inner kubernetes env
-        if endpoint == "localhost" or endpoint == "127.0.0.1":
-            # now, used in mac os with docker-desktop kubernetes cluster,
-            # which external ip is 'localhost' when service type is 'LoadBalancer'
-            return True
+    if "MY_POD_NAME" in os.environ and endpoint in ["localhost", "127.0.0.1"]:
+        # now, used in mac os with docker-desktop kubernetes cluster,
+        # which external ip is 'localhost' when service type is 'LoadBalancer'
+        return True
 
     client = Client(f"ws://{endpoint}/gremlin", "g")
     error_message = ""

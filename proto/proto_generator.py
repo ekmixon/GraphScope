@@ -24,8 +24,7 @@ import sys
 
 def gather_all_proto(proto_dir, suffix="*.proto"):
     directory = os.path.join(proto_dir, suffix)
-    files = glob.glob(directory)
-    return files
+    return glob.glob(directory)
 
 
 def create_path(path):
@@ -39,12 +38,7 @@ def cpp_out(base_dir, proto_path, output_dir):
     files = gather_all_proto(os.path.join(base_dir, proto_path))
     for proto_file in files:
         subprocess.check_call(
-            [
-                "protoc",
-                "-I%s" % ".",
-                "--cpp_out=%s" % output_dir,
-                proto_file,
-            ],
+            ["protoc", '-I.', f"--cpp_out={output_dir}", proto_file],
             stderr=subprocess.STDOUT,
         )
 
@@ -57,8 +51,8 @@ def python_out(base_dir, proto_path, output_dir):
                 "python3",
                 "-m",
                 "grpc_tools.protoc",
-                "-I%s" % ".",
-                "--python_out=%s" % output_dir,
+                '-I.',
+                f"--python_out={output_dir}",
                 proto_file,
             ],
             stderr=subprocess.STDOUT,
@@ -75,9 +69,9 @@ def cpp_service_out(base_dir, proto_path, output_dir):
         subprocess.check_call(
             [
                 "protoc",
-                "-I%s" % ".",
-                "--grpc_out=%s" % output_dir,
-                "--plugin=protoc-gen-grpc=%s" % plugin_path,
+                '-I.',
+                f"--grpc_out={output_dir}",
+                f"--plugin=protoc-gen-grpc={plugin_path}",
                 proto_file,
             ],
             stderr=subprocess.STDOUT,
@@ -93,9 +87,9 @@ def python_service_out(base_dir, proto_path, output_dir):
                 "python3",
                 "-m",
                 "grpc_tools.protoc",
-                "-I%s" % ".",
-                "--python_out=%s" % output_dir,
-                "--grpc_python_out=%s" % output_dir,
+                '-I.',
+                f"--python_out={output_dir}",
+                f"--grpc_python_out={output_dir}",
                 proto_file,
             ],
             stderr=subprocess.STDOUT,
@@ -112,18 +106,18 @@ if __name__ == "__main__":
         directory = "."
         proto_path = "proto"
 
-        if len(sys.argv) <= 2 or len(sys.argv) > 2 and sys.argv[2] == "--cpp":
+        if len(sys.argv) <= 2 or sys.argv[2] == "--cpp":
             output_dir = sys.argv[1]
             output_dir = os.path.realpath(os.path.realpath(output_dir))
-            print("Generating cpp proto to:" + output_dir)
+            print(f"Generating cpp proto to:{output_dir}")
             create_path(output_dir)
             cpp_out(directory, proto_path, output_dir)
             cpp_service_out(directory, proto_path, output_dir)
 
-        if len(sys.argv) <= 2 or len(sys.argv) > 2 and sys.argv[2] == "--python":
+        if len(sys.argv) <= 2 or sys.argv[2] == "--python":
             output_dir = sys.argv[1]
             output_dir = os.path.realpath(os.path.realpath(output_dir))
-            print("Generating python proto to:" + output_dir)
+            print(f"Generating python proto to:{output_dir}")
             python_out(directory, proto_path, output_dir)
             python_service_out(directory, proto_path, output_dir)
             if not os.path.exists(os.path.join(output_dir, "proto", "__init__.py")):

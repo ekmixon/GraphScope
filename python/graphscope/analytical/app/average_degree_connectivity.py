@@ -96,7 +96,6 @@ def average_degree_connectivity(G, source="in+out", target="in+out", weight=None
     )
     res_list = ctx.to_numpy("r", axis=0).tolist()
     res_list = [i for item in res_list for i in item]
-    degree = [int(i) for i in res_list[0::2]]
+    degree = [int(i) for i in res_list[::2]]
     degree_connectivity = res_list[1::2]
-    res = dict(zip(degree, degree_connectivity))
-    return res
+    return dict(zip(degree, degree_connectivity))

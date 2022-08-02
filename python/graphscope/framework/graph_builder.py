@@ -177,5 +177,4 @@ def load_from(
     op = dag_utils.create_graph(
         sess.session_id, graph_def_pb2.ARROW_PROPERTY, inputs=[loader_op], attrs=config
     )
-    graph = sess.g(op)
-    return graph
+    return sess.g(op)

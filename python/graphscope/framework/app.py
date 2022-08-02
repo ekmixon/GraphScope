@@ -104,9 +104,7 @@ def not_compatible_for(*graph_types):
                     "Use one or more of arrow_property,dynamic_property,arrow_projected,dynamic_projected",
                 )
             if match:
-                raise InvalidArgumentError(
-                    "Not compatible for %s type" % " ".join(graph_types)
-                )
+                raise InvalidArgumentError(f'Not compatible for {" ".join(graph_types)} type')
             else:
                 return not_compatible_for_func(*args, **kwargs)
 
@@ -184,7 +182,7 @@ class AppAssets(DAGNode):
                 self._type = meta["type"]
                 self._meta = meta
                 return
-        raise InvalidArgumentError("App not found in gar: {}".format(self._algo))
+        raise InvalidArgumentError(f"App not found in gar: {self._algo}")
 
     @property
     def algo(self):
@@ -225,7 +223,7 @@ class AppAssets(DAGNode):
     @classmethod
     def to_gar(cls, path):
         if os.path.exists(path):
-            raise RuntimeError("Path exist: {}.".format(path))
+            raise RuntimeError(f"Path exist: {path}.")
         with open(path, "wb") as f:
             f.write(cls._gar)
 
@@ -267,9 +265,7 @@ class AppAssets(DAGNode):
         # check yaml file
         graph_type = graph_type_to_cpp_class(graph.graph_type)
         if graph_type not in self._meta["compatible_graph"]:
-            raise InvalidArgumentError(
-                "App is uncompatible with graph {}".format(graph_type)
-            )
+            raise InvalidArgumentError(f"App is uncompatible with graph {graph_type}")
         return True
 
     def __call__(self, graph, *args, **kwargs):
@@ -397,7 +393,7 @@ class App(object):
     def signature(self):
         """Signature is computed by all critical components of the App."""
         return hashlib.sha256(
-            "{}.{}".format(self._app_assets.signature, self._graph.template_str).encode(
+            f"{self._app_assets.signature}.{self._graph.template_str}".encode(
                 "utf-8"
             )
         ).hexdigest()
@@ -460,7 +456,7 @@ def load_app(algo, gar=None, **kwargs):
         with open(gar, "rb") as f:
             content = f.read()
         if not zipfile.is_zipfile(gar):
-            raise InvalidArgumentError("{} is not a zip file.".format(gar))
+            raise InvalidArgumentError(f"{gar} is not a zip file.")
         return AppAssets(str(algo), None, content, **kwargs)
     else:
-        raise InvalidArgumentError("Wrong type with {}".format(gar))
+        raise InvalidArgumentError(f"Wrong type with {gar}")

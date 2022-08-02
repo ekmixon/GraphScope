@@ -468,14 +468,11 @@ def random_k_out_graph(n, k, alpha, self_loops=True, seed=None):
         raise ValueError("alpha must be positive")
     G = nx.empty_graph(n, create_using=nx.MultiDiGraph)
     weights = Counter({v: alpha for v in G})
-    for i in range(k * n):
+    for _ in range(k * n):
         u = seed.choice([v for v, d in G.out_degree() if d < k])
         # If self-loops are not allowed, make the source node `u` have
         # weight zero.
-        if not self_loops:
-            adjustment = Counter({u: weights[u]})
-        else:
-            adjustment = Counter()
+        adjustment = Counter() if self_loops else Counter({u: weights[u]})
         v = weighted_choice(weights - adjustment, seed=seed)
         G.add_edge(u, v)
         weights[v] += 1

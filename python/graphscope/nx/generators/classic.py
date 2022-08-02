@@ -67,7 +67,7 @@ def _tree_edges(n, r):
     parents = [next(nodes)]  # stack of max length r
     while parents:
         source = parents.pop(0)
-        for i in range(r):
+        for _ in range(r):
             try:
                 target = next(nodes)
                 parents.append(target)
@@ -90,12 +90,7 @@ def balanced_tree(r, h, create_using=None):
     # sum with ratio `r`. In the special case that `r` is 1, the number
     # of nodes is simply `h + 1` (since the tree is actually a path
     # graph).
-    if r == 1:
-        n = h + 1
-    else:
-        # This must be an integer if both `r` and `h` are integers. If
-        # they are not, we force integer division anyway.
-        n = (1 - r ** (h + 1)) // (1 - r)
+    n = h + 1 if r == 1 else (1 - r ** (h + 1)) // (1 - r)
     return full_rary_tree(r, n, create_using=create_using)
 
 
@@ -130,7 +125,7 @@ def barbell_graph(m1, m2, create_using=None):
 def binomial_tree(n):
     G = nx.empty_graph(1)
     N = 1
-    for i in range(n):
+    for _ in range(n):
         edges = [(u + N, v + N) for (u, v) in G.edges]
         G.add_edges_from(edges)
         G.add_edge(0, N)
@@ -192,10 +187,10 @@ def dorogovtsev_goltsev_mendes_graph(n, create_using=None):
     if n == 0:
         return G
     new_node = 2  # next node to be added
-    for i in range(1, n + 1):  # iterate over number of generations.
+    for _ in range(1, n + 1):
         last_generation_edges = list(G.edges())
         number_of_edges_in_last_generation = len(last_generation_edges)
-        for j in range(0, number_of_edges_in_last_generation):
+        for j in range(number_of_edges_in_last_generation):
             G.add_edge(new_node, last_generation_edges[j][0])
             G.add_edge(new_node, last_generation_edges[j][1])
             new_node += 1
@@ -293,8 +288,7 @@ def lollipop_graph(m, n, create_using=None):
 
 @patch_docstring(nxa.null_graph)
 def null_graph(create_using=None):
-    G = empty_graph(0, create_using)
-    return G
+    return empty_graph(0, create_using)
 
 
 @nodes_or_number(0)
@@ -322,8 +316,7 @@ def star_graph(n, create_using=None):
 
 def trivial_graph(create_using=None):
     """Return the Trivial graph with one node (with label 0) and no edges."""
-    G = empty_graph(1, create_using)
-    return G
+    return empty_graph(1, create_using)
 
 
 @patch_docstring(nxa.turan_graph)
@@ -332,8 +325,7 @@ def turan_graph(n, r):
         raise NetworkXError("Must satisfy 1 <= r <= n")
 
     partitions = [n // r] * (r - (n % r)) + [n // r + 1] * (n % r)
-    G = complete_multipartite_graph(*partitions)
-    return G
+    return complete_multipartite_graph(*partitions)
 
 
 @nodes_or_number(0)
@@ -355,7 +347,7 @@ def complete_multipartite_graph(*subset_sizes):
     # The complete multipartite graph is an undirected simple graph.
     G = Graph()
 
-    if len(subset_sizes) == 0:
+    if not subset_sizes:
         return G
 
     # set up subsets of nodes

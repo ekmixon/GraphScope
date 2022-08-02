@@ -68,45 +68,42 @@ class HostsClusterLauncher(Launcher):
         self._closed = True
 
     def poll(self):
-        if self._proc is not None:
-            return self._proc.poll()
-        return -1
+        return self._proc.poll() if self._proc is not None else -1
 
     def _launch_coordinator(self):
         if self._port is None:
             self._port = get_free_port()
-        else:
-            # check port conflict
-            if not is_free_port(self._port):
-                raise RuntimeError("Port {} already used.".format(self._port))
+        elif not is_free_port(self._port):
+            raise RuntimeError(f"Port {self._port} already used.")
 
-        self._coordinator_endpoint = "{}:{}".format(self._hosts[0], self._port)
+        self._coordinator_endpoint = f"{self._hosts[0]}:{self._port}"
 
         cmd = [
             sys.executable,
             "-m",
             "gscoordinator",
             "--num_workers",
-            "{}".format(str(self._num_workers)),
+            f"{str(self._num_workers)}",
             "--hosts",
-            "{}".format(",".join(self._hosts)),
+            f'{",".join(self._hosts)}',
             "--log_level",
-            "{}".format(gs_config.log_level),
+            f"{gs_config.log_level}",
             "--timeout_seconds",
-            "{}".format(self._timeout_seconds),
+            f"{self._timeout_seconds}",
             "--port",
-            "{}".format(str(self._port)),
+            f"{str(self._port)}",
             "--cluster_type",
             self.type(),
             "--instance_id",
             self._instance_id,
         ]
 
+
         if self._vineyard_shared_mem is not None:
             cmd.extend(["--vineyard_shared_mem", self._vineyard_shared_mem])
 
         if self._vineyard_socket is not None:
-            cmd.extend(["--vineyard_socket", "{}".format(self._vineyard_socket)])
+            cmd.extend(["--vineyard_socket", f"{self._vineyard_socket}"])
 
         logger.info("Initializing coordinator with command: %s", " ".join(cmd))
 

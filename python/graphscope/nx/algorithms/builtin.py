@@ -43,10 +43,10 @@ def project_to_simple(func):
             if (
                 "weight" in inspect.getfullargspec(func)[0]
             ):  # func has 'weight' argument
-                weight = kwargs.get("weight", None)
+                weight = kwargs.get("weight")
                 graph = graph._project_to_simple(e_prop=weight)
             elif "attribute" in inspect.getfullargspec(func)[0]:
-                attribute = kwargs.get("attribute", None)
+                attribute = kwargs.get("attribute")
                 graph = graph._project_to_simple(v_prop=attribute)
             else:
                 graph = graph._project_to_simple()
@@ -992,10 +992,7 @@ def node_boundary(G, nbunch1, nbunch2=None):
 
     """
     n1json = json.dumps(list(nbunch1))
-    if nbunch2:
-        n2json = json.dumps(list(nbunch2))
-    else:
-        n2json = ""
+    n2json = json.dumps(list(nbunch2)) if nbunch2 else ""
     ctx = AppAssets(algo="node_boundary", context="tensor")(G, n1json, n2json)
     return ctx.to_numpy("r", axis=0).tolist()
 
@@ -1040,10 +1037,7 @@ def edge_boundary(G, nbunch1, nbunch2=None):
 
     """
     n1json = json.dumps(list(nbunch1))
-    if nbunch2:
-        n2json = json.dumps(list(nbunch2))
-    else:
-        n2json = ""
+    n2json = json.dumps(list(nbunch2)) if nbunch2 else ""
     ctx = AppAssets(algo="edge_boundary", context="tensor")(G, n1json, n2json)
     return ctx.to_numpy("r", axis=0).tolist()
 
@@ -1267,10 +1261,7 @@ def get_all_simple_paths(G, source, target_nodes, cutoff):
         return []
     ctx = _all_simple_paths(G, source, list(set(target_nodes)), cutoff)
     paths = ctx.to_numpy("r", axis=0).tolist()
-    if len(paths) == 1:
-        if not isinstance(paths[0], list):
-            return []
-    return paths
+    return [] if len(paths) == 1 and not isinstance(paths[0], list) else paths
 
 
 def all_simple_paths(G, source, target_nodes, cutoff=None):
@@ -1352,7 +1343,7 @@ def all_simple_edge_paths(G, source, target_nodes, cutoff=None):
                 a = path.pop(i)
             else:
                 b = path.pop(i)
-                if a != -1 and a != "":
+                if a not in [-1, ""]:
                     path.insert(i, (b, a))
                 a = b
     return paths

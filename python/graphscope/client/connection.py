@@ -106,11 +106,10 @@ class Connection:
     def g(self):
         request = ddl_service_pb2.GetGraphDefRequest()
         graph_def = self.get_graph_def(request).graph_def
-        graph = Graph(graph_def, self)
-        return graph
+        return Graph(graph_def, self)
 
     def gremlin(self):
-        graph_url = "ws://%s/gremlin" % self._gremlin_endpoint
+        graph_url = f"ws://{self._gremlin_endpoint}/gremlin"
         return traversal().withRemote(DriverRemoteConnection(graph_url, "g"))
 
     def _get_client_id(self):

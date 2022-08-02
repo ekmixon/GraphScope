@@ -28,7 +28,7 @@ logger = logging.getLogger("graphscope")
 
 
 def _remove_nones(o):
-    return dict((k, v) for k, v in o.items() if v is not None)
+    return {k: v for k, v in o.items() if v is not None}
 
 
 def resolve_volume_builder(name, value):
@@ -46,7 +46,7 @@ class ConfigMapBuilder(object):
 
     def __init__(self, name):
         self._name = name
-        self._kvs = dict()
+        self._kvs = {}
 
     def add_kv(self, key, value):
         if value:
@@ -228,17 +228,17 @@ class ServiceBuilder(object):
 
     def build(self):
         if isinstance(self._port, (range, list, tuple)):
-            ports = []
-            for idx, port in enumerate(self._port):
-                ports.append(
-                    _remove_nones(
-                        {
-                            "name": "%s-%d" % (self._name, idx),
-                            "protocol": self._protocol,
-                            "port": port,
-                        }
-                    )
+            ports = [
+                _remove_nones(
+                    {
+                        "name": "%s-%d" % (self._name, idx),
+                        "protocol": self._protocol,
+                        "port": port,
+                    }
                 )
+                for idx, port in enumerate(self._port)
+            ]
+
         else:
             ports = [
                 _remove_nones(
@@ -405,7 +405,7 @@ class ExecProbeBuilder(ProbeBuilder):
 
     def build(self):
         result = {"exec": {"command": self._command}}
-        result.update(super().build())
+        result |= super().build()
         return result
 
 
@@ -418,7 +418,7 @@ class TcpProbeBuilder(ProbeBuilder):
 
     def build(self):
         result = {"tcpSocket": {"port": self._port}}
-        result.update(super().build())
+        result |= super().build()
         return result
 
 
@@ -439,7 +439,7 @@ class HttpProbeBuilder(ProbeBuilder):
                 "httpHeaders": [h.build() for h in self._http_headers],
             }
         }
-        result.update(super().build())
+        result |= super().build()
         return result
 
 
@@ -460,7 +460,7 @@ class DeploymentBuilder(object):
 
         self._containers = []
         self._volumes = []
-        self._envs = dict()
+        self._envs = {}
         self._image_pull_secrets = []
         self._host_network = False
 
@@ -505,16 +505,16 @@ class DeploymentBuilder(object):
     def build_template_spec(self):
         result = {
             "hostNetwork": self._host_network,
-            "containers": [ctn for ctn in self._containers],
+            "containers": list(self._containers),
             "volumes": [vol.build() for vol in self._volumes] or None,
             "imagePullSecrets": [ips.build() for ips in self._image_pull_secrets]
             or None,
         }
-        return dict((k, v) for k, v in result.items() if v)
+
+        return {k: v for k, v in result.items() if v}
 
     def build_selector(self):
-        result = {"matchLabels": self._labels}
-        return result
+        return {"matchLabels": self._labels}
 
     def build(self):
         return {
@@ -546,7 +546,7 @@ class ReplicaSetBuilder(object):
 
         self._containers = []
         self._volumes = []
-        self._envs = dict()
+        self._envs = {}
         self._image_pull_secrets = []
         self._host_network = False
 
@@ -591,16 +591,16 @@ class ReplicaSetBuilder(object):
     def build_pod_spec(self):
         result = {
             "hostNetwork": self._host_network,
-            "containers": [ctn for ctn in self._containers],
+            "containers": list(self._containers),
             "volumes": [vol.build() for vol in self._volumes] or None,
             "imagePullSecrets": [ips.build() for ips in self._image_pull_secrets]
             or None,
         }
-        return dict((k, v) for k, v in result.items() if v)
+
+        return {k: v for k, v in result.items() if v}
 
     def build_selector(self):
-        result = {"matchLabels": self._labels}
-        return result
+        return {"matchLabels": self._labels}
 
     def build(self):
         return {
@@ -660,21 +660,21 @@ class GSEngineBuilder(ReplicaSetBuilder):
         vineyard_command = " ".join(
             [
                 "vineyardd",
-                "--size=%s" % str(shared_mem),
+                f"--size={str(shared_mem)}",
                 '--etcd_endpoint="%s"' % (";".join(etcd_endpoints),),
-                "--socket=%s" % self._ipc_socket_file,
+                f"--socket={self._ipc_socket_file}",
                 "--etcd_prefix=vineyard",
             ]
         )
-        commands = []
-        commands.append(
-            "while ! curl --output /dev/null --silent --head --connect-timeout 1 %s"
-            % etcd_endpoints[0]
-        )
-        commands.append("do sleep 1 && echo -n .")
-        commands.append("done")
-        commands.append(vineyard_command)
-        cmd = ["bash", "-c", "%s" % ("; ".join(commands),)]
+
+        commands = [
+            f"while ! curl --output /dev/null --silent --head --connect-timeout 1 {etcd_endpoints[0]}",
+            "do sleep 1 && echo -n .",
+            "done",
+            vineyard_command,
+        ]
+
+        cmd = ["bash", "-c", f'{"; ".join(commands)}']
 
         resources_dict = {
             "requests": ResourceBuilder(
@@ -704,9 +704,7 @@ class GSEngineBuilder(ReplicaSetBuilder):
 
         volumeMounts = []
         for vol in self._volumes:
-            for vol_mount in vol.build_mount():
-                volumeMounts.append(vol_mount)
-
+            volumeMounts.extend(iter(vol.build_mount()))
         super().add_container(
             _remove_nones(
                 {
@@ -715,7 +713,7 @@ class GSEngineBuilder(ReplicaSetBuilder):
                     "image": image,
                     "name": name,
                     "imagePullPolicy": self._image_pull_policy,
-                    "resources": dict((k, v) for k, v in resources_dict.items() if v)
+                    "resources": {k: v for k, v in resources_dict.items() if v}
                     or None,
                     "ports": [PortBuilder(port).build()],
                     "volumeMounts": volumeMounts or None,
@@ -756,23 +754,17 @@ class GSEngineBuilder(ReplicaSetBuilder):
             }
         )
 
-        readiness_cmd = [
-            "/bin/bash",
-            "-c",
-            "ls %s 2>/dev/null" % self._ipc_socket_file,
-        ]
+        readiness_cmd = ["/bin/bash", "-c", f"ls {self._ipc_socket_file} 2>/dev/null"]
         readiness_probe = ExecProbeBuilder(readiness_cmd)
 
         # ports range in 8000~9000 will be open if `ports ` param missing.
-        ports = kwargs.pop("ports", [i for i in range(8000, 9000)])
+        ports = kwargs.pop("ports", list(range(8000, 9000)))
         if not isinstance(ports, list):
             ports = [ports]
 
         volumeMounts = []
         for vol in self._volumes:
-            for vol_mount in vol.build_mount():
-                volumeMounts.append(vol_mount)
-
+            volumeMounts.extend(iter(vol.build_mount()))
         super().add_container(
             _remove_nones(
                 {
@@ -782,7 +774,7 @@ class GSEngineBuilder(ReplicaSetBuilder):
                     "image": image,
                     "name": name,
                     "imagePullPolicy": self._image_pull_policy,
-                    "resources": dict((k, v) for k, v in resources_dict.items() if v)
+                    "resources": {k: v for k, v in resources_dict.items() if v}
                     or None,
                     "ports": [PortBuilder(port).build() for port in ports],
                     "volumeMounts": volumeMounts or None,
@@ -814,11 +806,12 @@ class GSEngineBuilder(ReplicaSetBuilder):
             "python3",
             "-m",
             "mars.deploy.oscar.worker",
-            "--endpoint=$MY_POD_IP:%s" % port,
-            "--supervisors=%s" % scheduler_endpoint,
+            f"--endpoint=$MY_POD_IP:{port}",
+            f"--supervisors={scheduler_endpoint}",
             "--log-level=debug",
             "--config-file=/tmp/mars-on-vineyard.yml",
         ]
+
         cmd = ["bash", "-c", " ".join(cmd)]
 
         resources_dict = {
@@ -832,9 +825,7 @@ class GSEngineBuilder(ReplicaSetBuilder):
 
         volumeMounts = []
         for vol in self._volumes:
-            for vol_mount in vol.build_mount():
-                volumeMounts.append(vol_mount)
-
+            volumeMounts.extend(iter(vol.build_mount()))
         probe = TcpProbeBuilder(port=port, timeout=15, period=10, failure_thresh=8)
 
         super().add_container(
@@ -845,7 +836,7 @@ class GSEngineBuilder(ReplicaSetBuilder):
                     "image": image,
                     "name": name,
                     "imagePullPolicy": self._image_pull_policy,
-                    "resources": dict((k, v) for k, v in resources_dict.items() if v)
+                    "resources": {k: v for k, v in resources_dict.items() if v}
                     or None,
                     "ports": [PortBuilder(port).build()],
                     "volumeMounts": volumeMounts or None,
@@ -874,10 +865,11 @@ class GSEngineBuilder(ReplicaSetBuilder):
             "python3",
             "-m",
             "mars.deploy.oscar.supervisor",
-            "--endpoint=$MY_POD_IP:%s" % port,
+            f"--endpoint=$MY_POD_IP:{port}",
             "--log-level=debug",
             "--config-file=/tmp/mars-on-vineyard.yml",
         ]
+
         cmd = ["bash", "-c", " ".join(cmd)]
 
         resources_dict = {
@@ -891,9 +883,7 @@ class GSEngineBuilder(ReplicaSetBuilder):
 
         volumeMounts = []
         for vol in self._volumes:
-            for vol_mount in vol.build_mount():
-                volumeMounts.append(vol_mount)
-
+            volumeMounts.extend(iter(vol.build_mount()))
         probe = TcpProbeBuilder(port=port, timeout=15, period=10, failure_thresh=8)
 
         super().add_container(
@@ -904,7 +894,7 @@ class GSEngineBuilder(ReplicaSetBuilder):
                     "image": image,
                     "name": name,
                     "imagePullPolicy": self._image_pull_policy,
-                    "resources": dict((k, v) for k, v in resources_dict.items() if v)
+                    "resources": {k: v for k, v in resources_dict.items() if v}
                     or None,
                     "ports": [PortBuilder(port).build()],
                     "volumeMounts": volumeMounts or None,
@@ -948,9 +938,11 @@ class PodBuilder(object):
             {
                 "hostname": self._hostname,
                 "subdomain": self._subdomain,
-                "containers": [ctn for ctn in self._containers],
+                "containers": list(self._containers),
                 "volumes": [vol.build() for vol in self._volumes] or None,
-                "imagePullSecrets": [ips.build() for ips in self._image_pull_secrets]
+                "imagePullSecrets": [
+                    ips.build() for ips in self._image_pull_secrets
+                ]
                 or None,
                 "restartPolicy": self._restart_policy,
             }
@@ -1004,7 +996,7 @@ class GSEtcdBuilder(object):
         self._image_pull_secrets = image_pull_secrets
         self._max_txn_ops = 1024000
 
-        self._envs = dict()
+        self._envs = {}
         self._volumes = []
 
     def add_volume(self, vol):
@@ -1027,18 +1019,14 @@ class GSEtcdBuilder(object):
         pods_name = []
         initial_cluster = ""
         for i in range(self._num_pods):
-            name = "%s-%s" % (self._name_prefix, str(i))
+            name = f"{self._name_prefix}-{str(i)}"
             pods_name.append(name)
-            initial_cluster += "%s=http://%s:%s," % (
-                name,
-                name,
-                self._listen_peer_service_port,
-            )
+            initial_cluster += f"{name}=http://{name}:{self._listen_peer_service_port},"
         # drop last comma
-        initial_cluster = initial_cluster[0:-1]
+        initial_cluster = initial_cluster[:-1]
 
         pods_builders, svc_builders = [], []
-        for _, name in enumerate(pods_name):
+        for name in pods_name:
             pod_labels = {"etcd_name": name}
             pod_builder = PodBuilder(
                 name=name,
@@ -1055,20 +1043,20 @@ class GSEtcdBuilder(object):
                 "etcd",
                 "--name",
                 name,
-                "--max-txn-ops=%s" % self._max_txn_ops,
+                f"--max-txn-ops={self._max_txn_ops}",
                 "--initial-advertise-peer-urls",
-                "http://%s:%s" % (name, self._listen_peer_service_port),
+                f"http://{name}:{self._listen_peer_service_port}",
                 "--advertise-client-urls",
-                "http://%s:%s" % (name, self._listen_client_service_port),
+                f"http://{name}:{self._listen_client_service_port}",
                 "--data-dir=/var/lib/etcd",
-                "--listen-client-urls=http://0.0.0.0:%s"
-                % self._listen_client_service_port,
-                "--listen-peer-urls=http://0.0.0.0:%s" % self._listen_peer_service_port,
+                f"--listen-client-urls=http://0.0.0.0:{self._listen_client_service_port}",
+                f"--listen-peer-urls=http://0.0.0.0:{self._listen_peer_service_port}",
                 "--initial-cluster",
                 initial_cluster,
                 "--initial-cluster-state",
                 "new",
             ]
+
 
             resources_dict = {
                 "requests": ResourceBuilder(
@@ -1081,20 +1069,17 @@ class GSEtcdBuilder(object):
 
             volumeMounts = []
             for vol in self._volumes:
-                for vol_mount in vol.build_mount():
-                    volumeMounts.append(vol_mount)
-
+                volumeMounts.extend(iter(vol.build_mount()))
             pod_builder.add_container(
                 _remove_nones(
                     {
                         "command": cmd,
-                        "env": [env.build() for env in self._envs.values()] or None,
+                        "env": [env.build() for env in self._envs.values()]
+                        or None,
                         "image": self._image,
                         "name": self._container_name,
                         "imagePullPolicy": self._image_pull_policy,
-                        "resources": dict(
-                            (k, v) for k, v in resources_dict.items() if v
-                        )
+                        "resources": {k: v for k, v in resources_dict.items() if v}
                         or None,
                         "ports": [
                             PortBuilder(self._listen_peer_service_port).build(),
@@ -1107,6 +1092,7 @@ class GSEtcdBuilder(object):
                     }
                 )
             )
+
             pods_builders.append(pod_builder)
 
             service_builder = ServiceBuilder(
@@ -1126,9 +1112,9 @@ class GSEtcdBuilder(object):
         liveness_cmd = [
             "/bin/sh",
             "-ec",
-            "ETCDCTL_API=3 etcdctl --endpoints=http://[127.0.0.1]:%s get foo"
-            % str(self._listen_client_service_port),
+            f"ETCDCTL_API=3 etcdctl --endpoints=http://[127.0.0.1]:{str(self._listen_client_service_port)} get foo",
         ]
+
         return ExecProbeBuilder(liveness_cmd, timeout=15, failure_thresh=8)
 
 
@@ -1162,9 +1148,7 @@ class GSGraphManagerBuilder(DeploymentBuilder):
 
         volumeMounts = []
         for vol in self._volumes:
-            for vol_mount in vol.build_mount():
-                volumeMounts.append(vol_mount)
-
+            volumeMounts.extend(iter(vol.build_mount()))
         pre_stop_command = ["kill", "-TERM", "`lsof -i:8080 -t`"]
         lifecycle_dict = _remove_nones(
             {
@@ -1189,7 +1173,7 @@ class GSGraphManagerBuilder(DeploymentBuilder):
                     "image": image,
                     "name": name,
                     "imagePullPolicy": self._image_pull_policy,
-                    "resources": dict((k, v) for k, v in resources_dict.items() if v)
+                    "resources": {k: v for k, v in resources_dict.items() if v}
                     or None,
                     "ports": [PortBuilder(port).build() for port in ports]
                     if ports
@@ -1231,9 +1215,7 @@ class GSCoordinatorBuilder(DeploymentBuilder):
 
         volumeMounts = []
         for vol in self._volumes:
-            for vol_mount in vol.build_mount():
-                volumeMounts.append(vol_mount)
-
+            volumeMounts.extend(iter(vol.build_mount()))
         pre_stop_command = ["python3", "/usr/local/bin/pre_stop.py"]
         lifecycle_dict = _remove_nones(
             {
@@ -1256,7 +1238,7 @@ class GSCoordinatorBuilder(DeploymentBuilder):
                     "image": image,
                     "name": name,
                     "imagePullPolicy": self._image_pull_policy,
-                    "resources": dict((k, v) for k, v in resources_dict.items() if v)
+                    "resources": {k: v for k, v in resources_dict.items() if v}
                     or None,
                     "ports": [PortBuilder(port).build() for port in ports]
                     if ports

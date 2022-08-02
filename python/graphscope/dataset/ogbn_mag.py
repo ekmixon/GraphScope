@@ -70,7 +70,7 @@ def load_ogbn_mag(sess=None, prefix=None):
             file_hash="ccd128ab673e5d7dd1cceeaa4ba5d65b67a18212c4a27b0cd090359bd7042b10",
         )
         # assumed dirname is ogbn_mag_small after extracting from ogbn_mag_small.tar.gz
-        prefix = fpath[0:-7]
+        prefix = fpath[:-7]
 
     if sess is None:
         sess = get_default_session()

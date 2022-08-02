@@ -114,8 +114,7 @@ class Label:
         return idx
 
     def __repr__(self) -> str:
-        s = f"Label: {self.label}\nProperties: {', '.join([str(p) for p in self.properties])}\n"
-        return s
+        return f"Label: {self.label}\nProperties: {', '.join([str(p) for p in self.properties])}\n"
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -240,9 +239,11 @@ class GraphSchema:
         """
         self._vertex_labels.clear()
         self._edge_labels.clear()
-        id_to_label = {}
-        for type_def_pb in graph_def.type_defs:
-            id_to_label[type_def_pb.label_id.id] = type_def_pb.label
+        id_to_label = {
+            type_def_pb.label_id.id: type_def_pb.label
+            for type_def_pb in graph_def.type_defs
+        }
+
         edge_kinds = {}
         for kind in graph_def.edge_kinds:
             edge_label = id_to_label[kind.edge_label_id.id]
@@ -480,7 +481,7 @@ class GraphSchema:
         self._e_label_index.clear()
 
     def signature(self):
-        return hashlib.sha256("{}".format(self.__repr__()).encode("utf-8")).hexdigest()
+        return hashlib.sha256(f"{self.__repr__()}".encode("utf-8")).hexdigest()
 
     def add_vertex_label(self, label, vid_field=None, properties=None):
         item = VertexLabel(label)

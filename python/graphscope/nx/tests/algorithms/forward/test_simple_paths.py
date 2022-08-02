@@ -40,7 +40,7 @@ def test_ssp_multigraph(self):
 def test_cutoff_zero():
     G = nx.complete_graph(4)
     paths = nx.all_simple_paths(G, 0, 3, cutoff=0)
-    assert list(list(p) for p in paths) == []
+    assert not [list(p) for p in paths]
 
 
 def test_source_missing():

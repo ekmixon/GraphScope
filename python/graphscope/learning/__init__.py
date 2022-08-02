@@ -19,9 +19,10 @@
 import os
 import sys
 
-if os.environ.get("WITH_LEARNING_ENGINE") == "ON" and (
-    sys.platform != "linux" and sys.platform != "linux2"
-):
+if os.environ.get("WITH_LEARNING_ENGINE") == "ON" and sys.platform not in [
+    "linux",
+    "linux2",
+]:
     raise RuntimeError(
         "The learning engine currently supports Linux only, doesn't support %s"
         % sys.platform

@@ -128,13 +128,13 @@ class CoordinatorServiceServicer(
         # launch engines
         if len(GS_DEBUG_ENDPOINT) > 0:
             logger.info(
-                "Coordinator will connect to engine with endpoint: " + GS_DEBUG_ENDPOINT
+                f"Coordinator will connect to engine with endpoint: {GS_DEBUG_ENDPOINT}"
             )
+
             self._launcher._analytical_engine_endpoint = GS_DEBUG_ENDPOINT
-        else:
-            if not self._launcher.start():
-                logger.error("Launching analytical engine failed")
-                raise RuntimeError("Coordinator Launching failed.")
+        elif not self._launcher.start():
+            logger.error("Launching analytical engine failed")
+            raise RuntimeError("Coordinator Launching failed.")
 
         self._launcher_type = self._launcher.type()
         self._instance_id = self._launcher.instance_id
@@ -216,12 +216,11 @@ class CoordinatorServiceServicer(
                     pod_name_list=self._engine_hosts.split(","),
                     namespace=self._k8s_namespace,
                 )
-            else:
-                context.set_code(grpc.StatusCode.ALREADY_EXISTS)
-                context.set_details(
-                    "Cannot setup more than one connection at the same time."
-                )
-                return message_pb2.ConnectSessionResponse()
+            context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+            context.set_details(
+                "Cannot setup more than one connection at the same time."
+            )
+            return message_pb2.ConnectSessionResponse()
         # Connect to serving coordinator.
         self._request = request
         try:
@@ -237,9 +236,9 @@ class CoordinatorServiceServicer(
             return message_pb2.ConnectSessionResponse()
         # Generate session id
         self._session_id = self._generate_session_id()
-        self._key_to_op = dict()
+        self._key_to_op = {}
         # dict of op_def_pb2.OpResult
-        self._op_result_pool = dict()
+        self._op_result_pool = {}
 
         self._udf_app_workspace = os.path.join(
             WORKSPACE, self._instance_id, self._session_id
@@ -296,11 +295,10 @@ class CoordinatorServiceServicer(
                 err_msg = f"Connect to analytical engine failed, engine may not started or closed. {err_msg}"
                 logger.warning(err_msg)
                 context.set_code(grpc.StatusCode.DEADLINE_EXCEEDED)
-                context.set_details(err_msg)
             else:
                 err_msg = f"Connect to analytical engine failed with unknown exception. {err_msg}"
                 context.set_code(grpc.StatusCode.UNKNOWN)
-                context.set_details(err_msg)
+            context.set_details(err_msg)
         except Exception:
             context.set_code(grpc.StatusCode.UNKNOWN)
             context.set_details(
@@ -353,16 +351,17 @@ class CoordinatorServiceServicer(
                 e.code().name,
                 e.details(),
             )
-            if e.code() == grpc.StatusCode.INTERNAL:
+            if e.code() != grpc.StatusCode.INTERNAL:
+                raise
                 # TODO: make the stacktrace seperated from normal error messages
                 # Too verbose.
-                if len(e.details()) > 3072:  # 3k bytes
-                    msg = f"{e.details()[:3072]} ... [truncated]"
-                else:
-                    msg = e.details()
-                raise AnalyticalEngineInternalError(msg)
-            else:
-                raise
+            msg = (
+                f"{e.details()[:3072]} ... [truncated]"
+                if len(e.details()) > 3072
+                else e.details()
+            )
+
+            raise AnalyticalEngineInternalError(msg)
         op_results.extend(response.results)
         for r in response.results:
             op = self._key_to_op[r.key]
@@ -382,7 +381,7 @@ class CoordinatorServiceServicer(
                 types_pb2.ADD_LABELS,
                 types_pb2.ADD_COLUMN,
             ):
-                schema_path = os.path.join("/tmp", op_result.graph_def.key + ".json")
+                schema_path = os.path.join("/tmp", f"{op_result.graph_def.key}.json")
                 vy_info = graph_def_pb2.VineyardInfoPb()
                 op_result.graph_def.extension.Unpack(vy_info)
                 self._object_manager.put(
@@ -435,7 +434,7 @@ class CoordinatorServiceServicer(
             elif op.op == types_pb2.SUBGRAPH:
                 op_result = self._gremlin_to_subgraph(op)
             else:
-                raise RuntimeError("Unsupport op type: " + str(op.op))
+                raise RuntimeError(f"Unsupport op type: {str(op.op)}")
             op_results.append(op_result)
             # don't record the results of these ops to avoid
             # taking up too much memory in coordinator
@@ -460,7 +459,7 @@ class CoordinatorServiceServicer(
             elif op.op == types_pb2.CLOSE_LEARNING_INSTANCE:
                 op_result = self._close_learning_instance(op)
             else:
-                raise RuntimeError("Unsupport op type: " + str(op.op))
+                raise RuntimeError(f"Unsupport op type: {str(op.op)}")
             op_results.append(op_result)
             self._op_result_pool[op.key] = op_result
         return op_results
@@ -482,7 +481,7 @@ class CoordinatorServiceServicer(
             elif op.op == types_pb2.OUTPUT:
                 op_result = self._output(op)
             else:
-                raise RuntimeError("Unsupport op type: " + str(op.op))
+                raise RuntimeError(f"Unsupport op type: {str(op.op)}")
             op_results.append(op_result)
             self._op_result_pool[op.key] = op_result
         return op_results
@@ -494,7 +493,7 @@ class CoordinatorServiceServicer(
         )
 
     def RunStep(self, request, context):
-        op_results = list()
+        op_results = []
         # split dag
         dag_manager = DAGManager(request.dag_def)
         while not dag_manager.empty():
@@ -630,11 +629,10 @@ class CoordinatorServiceServicer(
             except queue.Empty:
                 error_message = ""
 
-            if info_message or error_message:
-                if self._streaming_logs:
-                    yield message_pb2.FetchLogsResponse(
-                        info_message=info_message, error_message=error_message
-                    )
+            if (info_message or error_message) and self._streaming_logs:
+                yield message_pb2.FetchLogsResponse(
+                    info_message=info_message, error_message=error_message
+                )
 
     def CloseSession(self, request, context):
         """
@@ -791,13 +789,14 @@ class CoordinatorServiceServicer(
         vineyard_ipc_socket = engine_config["vineyard_socket"]
         deployment, hosts = self._launcher.get_vineyard_stream_info()
         dfstream = vineyard.io.open(
-            "vineyard://" + str(df),
+            f"vineyard://{str(df)}",
             mode="r",
             vineyard_ipc_socket=vineyard_ipc_socket,
             vineyard_endpoint=vineyard_endpoint,
             deployment=deployment,
             hosts=hosts,
         )
+
         vineyard.io.open(
             fd,
             dfstream,
@@ -896,8 +895,8 @@ class CoordinatorServiceServicer(
         def load_subgraph(oid_type, name):
             import vineyard
 
-            vertices = [Loader(vineyard.ObjectName("__%s_vertex_stream" % name))]
-            edges = [Loader(vineyard.ObjectName("__%s_edge_stream" % name))]
+            vertices = [Loader(vineyard.ObjectName(f"__{name}_vertex_stream"))]
+            edges = [Loader(vineyard.ObjectName(f"__{name}_edge_stream"))]
             oid_type = normalize_data_type_str(oid_type)
             v_labels = normalize_parameter_vertices(vertices, oid_type)
             e_labels = normalize_parameter_edges(edges, oid_type)
@@ -932,7 +931,7 @@ class CoordinatorServiceServicer(
         # generate a random graph name
         now_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         random_num = random.randint(0, 10000000)
-        graph_name = "%s_%s" % (str(now_time), str(random_num))
+        graph_name = f"{str(now_time)}_{random_num}"
 
         # create a graph handle by name
         gremlin_client.submit(

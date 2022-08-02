@@ -604,7 +604,7 @@ class Graph(_GraphBase):
             data = dict(attr)
             try:
                 nn, dd = n
-                data.update(dd)
+                data |= dd
                 node = [nn, data]
                 n = nn
             except (TypeError, ValueError):
@@ -615,10 +615,9 @@ class Graph(_GraphBase):
                     nodes.append(json.dumps(node))
                 except TypeError as e:
                     raise NetworkXError(
-                        "The node and its {} data failed to be serialized by json.".format(
-                            node
-                        )
+                        f"The node and its {node} data failed to be serialized by json."
                     ) from e
+
         self._op = dag_utils.modify_vertices(self, types_pb2.NX_ADD_NODES, nodes)
         return self._op.eval()
 
@@ -654,7 +653,7 @@ class Graph(_GraphBase):
         """
         if not self.has_node(n):
             # NetworkXError if n not in self
-            raise NetworkXError("The node %s is not in the graph." % (n,))
+            raise NetworkXError(f"The node {n} is not in the graph.")
         return self.remove_nodes_from([n])
 
     def remove_nodes_from(self, nodes_for_removing):
@@ -903,16 +902,14 @@ class Graph(_GraphBase):
         for e in ebunch_to_add:
             ne = len(e)
             data = dict(attr)
-            if ne == 3:
+            if ne == 2:
+                u, v = e
+            elif ne == 3:
                 u, v, dd = e
                 # make attributes specified in ebunch take precedence to attr
-                data.update(dd)
-            elif ne == 2:
-                u, v = e
+                data |= dd
             else:
-                raise NetworkXError(
-                    "Edge tuple %s must be a 2-tuple or 3-tuple." % (e,)
-                )
+                raise NetworkXError(f"Edge tuple {e} must be a 2-tuple or 3-tuple.")
             # FIXME: support dynamic data type in same property
             check_node_is_legal(u)
             check_node_is_legal(v)
@@ -922,15 +919,14 @@ class Graph(_GraphBase):
                 edges.append(json.dumps(edge))
             except TypeError as e:
                 raise NetworkXError(
-                    "The edge and its data {} failed to be serialized by json.".format(
-                        edge
-                    )
+                    f"The edge and its data {edge} failed to be serialized by json."
                 ) from e
+
             if len(edges) > 10000:  # make sure messages size not larger than rpc max
                 op = dag_utils.modify_edges(self, types_pb2.NX_ADD_EDGES, edges)
                 op.eval()
                 edges.clear()
-        if len(edges) > 0:
+        if edges:
             op = dag_utils.modify_edges(self, types_pb2.NX_ADD_EDGES, edges)
             op.eval()
 
@@ -970,7 +966,7 @@ class Graph(_GraphBase):
     @patch_docstring(RefGraph.remove_edge)
     def remove_edge(self, u, v):
         if not self.has_edge(u, v):
-            raise NetworkXError("The edge %s-%s is not in the graph" % (u, v))
+            raise NetworkXError(f"The edge {u}-{v} is not in the graph")
         return self.remove_edges_from([(u, v)])
 
     def remove_edges_from(self, ebunch):
@@ -1005,7 +1001,7 @@ class Graph(_GraphBase):
         for e in ebunch:
             ne = len(e)
             if ne < 2:
-                raise ValueError("Edge tuple %s must be a 2-tuple or 3-tuple." % (e,))
+                raise ValueError(f"Edge tuple {e} must be a 2-tuple or 3-tuple.")
             check_node_is_legal(e[0])
             check_node_is_legal(e[1])
             edges.append(json.dumps(e[:2]))  # ignore edge data if present
@@ -1048,10 +1044,9 @@ class Graph(_GraphBase):
             edge = [json.dumps((u, v, data))]
         except TypeError as e:
             raise TypeError(
-                "The edge and its data {} failed to be serialized by json.".format(
-                    (u, v, data)
-                )
+                f"The edge and its data {(u, v, data)} failed to be serialized by json."
             ) from e
+
         self._schema.add_nx_edge_properties(data)
         self._op = dag_utils.modify_edges(self, types_pb2.NX_UPDATE_EDGES, edge)
         return self._op.eval()
@@ -1091,10 +1086,9 @@ class Graph(_GraphBase):
             node = [json.dumps((n, data))]
         except TypeError as e:
             raise NetworkXError(
-                "The node and its data {} failed to be serialized by json.".format(
-                    (n, data)
-                )
+                f"The node and its data {(n, data)} failed to be serialized by json."
             ) from e
+
         self._op = dag_utils.modify_vertices(self, types_pb2.NX_UPDATE_NODES, node)
         return self._op.eval()
 
@@ -1201,9 +1195,8 @@ class Graph(_GraphBase):
         """
         if weight:
             return sum(d for v, d in self.degree(weight=weight)) / 2
-        else:
-            op = dag_utils.report_graph(self, types_pb2.EDGE_NUM)
-            return int(op.eval()) // 2
+        op = dag_utils.report_graph(self, types_pb2.EDGE_NUM)
+        return int(op.eval()) // 2
 
     @patch_docstring(RefGraph.number_of_edges)
     def number_of_edges(self, u=None, v=None):
@@ -1303,7 +1296,7 @@ class Graph(_GraphBase):
         try:
             return iter(self._adj[n])
         except KeyError:
-            raise NetworkXError("The node %s is not in the graph." % (n,))
+            raise NetworkXError(f"The node {n} is not in the graph.")
 
     @property
     def edges(self):
@@ -1403,16 +1396,15 @@ class Graph(_GraphBase):
         >>> G.get_edge_data("a", "b", default=0)  # edge not in graph, return 0
         0
         """
-        if self.has_edge(u, v):
-            if self.graph_type == graph_def_pb2.ARROW_PROPERTY:
-                u = self._convert_to_label_id_tuple(u)
-                v = self._convert_to_label_id_tuple(v)
-            op = dag_utils.report_graph(
-                self, types_pb2.EDGE_DATA, edge=json.dumps((u, v)), key=""
-            )
-            return json.loads(op.eval())
-        else:
+        if not self.has_edge(u, v):
             return default
+        if self.graph_type == graph_def_pb2.ARROW_PROPERTY:
+            u = self._convert_to_label_id_tuple(u)
+            v = self._convert_to_label_id_tuple(v)
+        op = dag_utils.report_graph(
+            self, types_pb2.EDGE_DATA, edge=json.dumps((u, v)), key=""
+        )
+        return json.loads(op.eval())
 
     @property
     @patch_docstring(RefGraph.adj)
@@ -1665,30 +1657,29 @@ class Graph(_GraphBase):
         """
         self._convert_arrow_to_dynamic()
 
-        if self.is_directed():
-            graph_class = self.to_undirected_class()
-            if as_view:
-                g = graph_class(create_empty_in_engine=False)
-                g.graph.update(self.graph)
-                op = dag_utils.create_graph_view(self, "undirected")
-                graph_def = op.eval()
-                g._key = graph_def.key
-                g._schema = copy.deepcopy(self._schema)
-                g._graph = self
-                g._session = self._session
-                g._is_client_view = False
-                g = freeze(g)
-                return g
+        if not self.is_directed():
+            return self.copy(as_view=as_view)
+        graph_class = self.to_undirected_class()
+        if as_view:
             g = graph_class(create_empty_in_engine=False)
-            g.graph = copy.deepcopy(self.graph)
-            op = dag_utils.to_undirected(self)
+            g.graph.update(self.graph)
+            op = dag_utils.create_graph_view(self, "undirected")
             graph_def = op.eval()
             g._key = graph_def.key
-            g._session = self._session
             g._schema = copy.deepcopy(self._schema)
+            g._graph = self
+            g._session = self._session
+            g._is_client_view = False
+            g = freeze(g)
             return g
-        else:
-            return self.copy(as_view=as_view)
+        g = graph_class(create_empty_in_engine=False)
+        g.graph = copy.deepcopy(self.graph)
+        op = dag_utils.to_undirected(self)
+        graph_def = op.eval()
+        g._key = graph_def.key
+        g._session = self._session
+        g._schema = copy.deepcopy(self._schema)
+        return g
 
     def to_directed(self, as_view=False):
         """Returns a directed representation of the graph.
@@ -1731,28 +1722,27 @@ class Graph(_GraphBase):
 
         if self.is_directed():
             return self.copy(as_view=as_view)
-        else:
-            graph_class = self.to_directed_class()
-            if as_view:
-                g = graph_class(create_empty_in_engine=False)
-                g.graph.update(self.graph)
-                op = dag_utils.create_graph_view(self, "directed")
-                graph_def = op.eval()
-                g._key = graph_def.key
-                g._schema = copy.deepcopy(self._schema)
-                g._graph = self
-                g._session = self._session
-                g._is_client_view = False
-                g = freeze(g)
-                return g
+        graph_class = self.to_directed_class()
+        if as_view:
             g = graph_class(create_empty_in_engine=False)
-            g.graph = copy.deepcopy(self.graph)
-            op = dag_utils.to_directed(self)
+            g.graph.update(self.graph)
+            op = dag_utils.create_graph_view(self, "directed")
             graph_def = op.eval()
             g._key = graph_def.key
-            g._session = self._session
             g._schema = copy.deepcopy(self._schema)
+            g._graph = self
+            g._session = self._session
+            g._is_client_view = False
+            g = freeze(g)
             return g
+        g = graph_class(create_empty_in_engine=False)
+        g.graph = copy.deepcopy(self.graph)
+        op = dag_utils.to_directed(self)
+        graph_def = op.eval()
+        g._key = graph_def.key
+        g._session = self._session
+        g._schema = copy.deepcopy(self._schema)
+        return g
 
     def subgraph(self, nodes):
         """Returns a independent deep copy subgraph induced on `nodes`.
@@ -1789,9 +1779,7 @@ class Graph(_GraphBase):
             try:
                 induced_nodes.append(json.dumps([n]))
             except TypeError as e:
-                raise TypeError(
-                    "The node {} failed to be serialized by json.".format(n)
-                ) from e
+                raise TypeError(f"The node {n} failed to be serialized by json.") from e
         g = self.__class__(create_empty_in_engine=False)
         g.graph.update(self.graph)
         op = dag_utils.create_subgraph(self, nodes=induced_nodes)
@@ -1843,8 +1831,9 @@ class Graph(_GraphBase):
                 induced_edges.append(json.dumps((u, v)))
             except TypeError as e:
                 raise NetworkXError(
-                    "The edge {} failed to be serialized by json.".format((u, v))
+                    f"The edge {(u, v)} failed to be serialized by json."
                 ) from e
+
         g = self.__class__(create_empty_in_engine=False)
         g.graph.update(self.graph)
         op = dag_utils.create_subgraph(self, edges=induced_edges)
@@ -1927,12 +1916,11 @@ class Graph(_GraphBase):
         {0: {}, 2: {}}
         """
         if n not in self:
-            raise NetworkXError("The node %s is not in the graph." % (n,))
+            raise NetworkXError(f"The node {n} is not in the graph.")
         if self.graph_type == graph_def_pb2.ARROW_PROPERTY:
             n = self._convert_to_label_id_tuple(n)
         op = dag_utils.report_graph(self, report_type, node=json.dumps([n]))
-        ret = op.eval()
-        return ret
+        return op.eval()
 
     def _batch_get_nbrs(self, location, report_type=types_pb2.SUCCS_BY_LOC):
         """Get neighbors of nodes by location in batch.
@@ -2075,9 +2063,7 @@ class Graph(_GraphBase):
                     v_prop_id
                 ].type
             except KeyError:
-                raise InvalidArgumentError(
-                    "graph not contains the vertex property {}".format(v_prop)
-                )
+                raise InvalidArgumentError(f"graph not contains the vertex property {v_prop}")
 
         if e_prop is None:
             e_prop = str(e_prop)
@@ -2089,9 +2075,7 @@ class Graph(_GraphBase):
                 e_prop_id = self._schema.get_edge_property_id(e_label, e_prop)
                 e_prop_type = self._schema.get_edge_properties(e_label)[e_prop_id].type
             except KeyError:
-                raise InvalidArgumentError(
-                    "graph not contains the edge property {}".format(e_prop)
-                )
+                raise InvalidArgumentError(f"graph not contains the edge property {e_prop}")
         op = dag_utils.project_dynamic_property_graph(
             self, v_prop, e_prop, v_prop_type, e_prop_type
         )

@@ -47,20 +47,18 @@ def catch_grpc_error(fn):
             return fn(*args, **kwargs)
         except grpc.RpcError as exc:
             if grpc.StatusCode.INTERNAL == exc.code():
-                raise GRPCError("Internal Error: " + exc.details()) from None
+                raise GRPCError(f"Internal Error: {exc.details()}") from None
             elif (
                 grpc.StatusCode.UNKNOWN == exc.code()
                 or grpc.StatusCode.UNAVAILABLE == exc.code()
             ):
                 logger.error(
-                    "rpc %s: failed with error code %s, details: %s"
-                    % (fn.__name__, exc.code(), exc.details())
+                    f"rpc {fn.__name__}: failed with error code {exc.code()}, details: {exc.details()}"
                 )
+
                 raise FatalError("The analytical engine server may down.") from None
             else:
-                raise GRPCError(
-                    "rpc %s failed: status %s" % (str(fn.__name__), exc)
-                ) from None
+                raise GRPCError(f"rpc {str(fn.__name__)} failed: status {exc}") from None
 
     return with_grpc_catch
 
@@ -137,7 +135,7 @@ class GRPCClient(object):
         return self._session_id
 
     def __str__(self):
-        return "%s" % self._session_id
+        return f"{self._session_id}"
 
     def __repr__(self):
         return str(self)
@@ -200,18 +198,15 @@ class GRPCClient(object):
         request = message_pb2.FetchLogsRequest(session_id=self._session_id)
         responses = self._stub.FetchLogs(request)
         for resp in responses:
-            info = resp.info_message.rstrip()
-            if info:
+            if info := resp.info_message.rstrip():
                 logger.info(info, extra={"simple": True})
-            error = resp.error_message.rstrip()
-            if error:
+            if error := resp.error_message.rstrip():
                 logger.error(error, extra={"simple": True})
 
     @catch_grpc_error
     def _close_session_impl(self):
         request = message_pb2.CloseSessionRequest(session_id=self._session_id)
-        response = self._stub.CloseSession(request)
-        return response
+        return self._stub.CloseSession(request)
 
     @catch_grpc_error
     def _run_step_impl(self, dag_def):

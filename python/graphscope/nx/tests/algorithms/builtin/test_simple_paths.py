@@ -147,7 +147,7 @@ class TestAllSimplePaths:
     def test_all_simple_paths_source_target(self):
         G = nx.path_graph(4)
         paths = nx.builtin.all_simple_paths(G, 1, 1)
-        assert list(paths) == []
+        assert not list(paths)
 
     def test_all_simple_paths_cutoff(self):
         G = nx.complete_graph(4)
@@ -186,7 +186,7 @@ class TestAllSimplePaths:
     def test_all_simple_paths_multigraph(self):
         G = nx.MultiGraph([(1, 2), (1, 2)])
         paths = nx.builtin.all_simple_paths(G, 1, 1)
-        assert list(paths) == []
+        assert not list(paths)
         nx.add_path(G, [3, 1, 10, 2])
         paths = list(nx.builtin.all_simple_paths(G, 1, 2))
         assert len(paths) == 3
@@ -209,20 +209,20 @@ class TestAllSimplePaths:
     def test_all_simple_paths_empty(self):
         G = nx.path_graph(4)
         paths = nx.builtin.all_simple_paths(G, 0, 3, cutoff=2)
-        assert list(paths) == []
+        assert not list(paths)
 
     def test_all_simple_paths_corner_cases(self):
-        assert list(nx.builtin.all_simple_paths(nx.empty_graph(2), 0, 0)) == []
-        assert list(nx.builtin.all_simple_paths(nx.empty_graph(2), 0, 1)) == []
-        assert list(nx.builtin.all_simple_paths(nx.path_graph(9), 0, 8, 0)) == []
+        assert not list(nx.builtin.all_simple_paths(nx.empty_graph(2), 0, 0))
+        assert not list(nx.builtin.all_simple_paths(nx.empty_graph(2), 0, 1))
+        assert not list(nx.builtin.all_simple_paths(nx.path_graph(9), 0, 8, 0))
 
     @pytest.mark.skip(reason="not support hamiltonian_path")
-    def hamiltonian_path(G, source):
-        source = arbitrary_element(G)
-        neighbors = set(G[source]) - {source}
-        n = len(G)
+    def hamiltonian_path(self, source):
+        source = arbitrary_element(self)
+        neighbors = set(self[source]) - {source}
+        n = len(self)
         for target in neighbors:
-            for path in nx.builtin.all_simple_paths(G, source, target):
+            for path in nx.builtin.all_simple_paths(self, source, target):
                 if len(path) == n:
                     yield path
 
@@ -238,7 +238,7 @@ class TestAllSimplePaths:
     def test_cutoff_zero(self):
         G = nx.complete_graph(4)
         paths = nx.builtin.all_simple_paths(G, 0, 3, cutoff=0)
-        assert list(list(p) for p in paths) == []
+        assert not [list(p) for p in paths]
         # paths = nx.builtin.all_simple_paths(nx.MultiGraph(G), 0, 3, cutoff=0)
         # assert list(list(p) for p in paths) == []
 
@@ -322,7 +322,7 @@ class TestAllSimpleEdgePaths:
     def test_all_simple_edge_paths_source_target(self):
         G = nx.path_graph(4)
         paths = nx.builtin.all_simple_edge_paths(G, 1, 1)
-        assert list(paths) == []
+        assert not list(paths)
 
     def test_all_simple_edge_paths_cutoff(self):
         G = nx.complete_graph(4)
@@ -365,7 +365,7 @@ class TestAllSimpleEdgePaths:
     def test_all_simple_edge_paths_multigraph(self):
         G = nx.MultiGraph([(1, 2), (1, 2)])
         paths = nx.builtin.all_simple_edge_paths(G, 1, 1)
-        assert list(paths) == []
+        assert not list(paths)
         nx.add_path(G, [3, 1, 10, 2])
         paths = list(nx.builtin.all_simple_edge_paths(G, 1, 2))
         assert len(paths) == 3
@@ -392,20 +392,20 @@ class TestAllSimpleEdgePaths:
     def test_all_simple_edge_paths_empty(self):
         G = nx.path_graph(4)
         paths = nx.builtin.all_simple_edge_paths(G, 0, 3, cutoff=2)
-        assert list(paths) == []
+        assert not list(paths)
 
     def test_all_simple_edge_paths_corner_cases(self):
-        assert list(nx.builtin.all_simple_edge_paths(nx.empty_graph(2), 0, 0)) == []
-        assert list(nx.builtin.all_simple_edge_paths(nx.empty_graph(2), 0, 1)) == []
-        assert list(nx.builtin.all_simple_edge_paths(nx.path_graph(9), 0, 8, 0)) == []
+        assert not list(nx.builtin.all_simple_edge_paths(nx.empty_graph(2), 0, 0))
+        assert not list(nx.builtin.all_simple_edge_paths(nx.empty_graph(2), 0, 1))
+        assert not list(nx.builtin.all_simple_edge_paths(nx.path_graph(9), 0, 8, 0))
 
     @pytest.mark.skip(reason="not support hamiltonian_path")
-    def hamiltonian_edge_path(G, source):
-        source = arbitrary_element(G)
-        neighbors = set(G[source]) - {source}
-        n = len(G)
+    def hamiltonian_edge_path(self, source):
+        source = arbitrary_element(self)
+        neighbors = set(self[source]) - {source}
+        n = len(self)
         for target in neighbors:
-            for path in nx.builtin.all_simple_edge_paths(G, source, target):
+            for path in nx.builtin.all_simple_edge_paths(self, source, target):
                 if len(path) == n - 1:
                     yield path
 
@@ -416,12 +416,12 @@ class TestAllSimpleEdgePaths:
         G = nx.complete_graph(4)
         paths = hamiltonian_edge_path(G, 0)
         exact = [list(pairwise([0] + list(p))) for p in permutations([1, 2, 3], 3)]
-        assert sorted(exact) == [p for p in sorted(paths)]
+        assert sorted(exact) == list(sorted(paths))
 
     def test_edge_cutoff_zero(self):
         G = nx.complete_graph(4)
         paths = nx.builtin.all_simple_edge_paths(G, 0, 3, cutoff=0)
-        assert list(list(p) for p in paths) == []
+        assert not [list(p) for p in paths]
         # paths = nx.all_simple_edge_paths(nx.MultiGraph(G), 0, 3, cutoff=0)
         # assert list(list(p) for p in paths) == []
 

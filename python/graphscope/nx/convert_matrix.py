@@ -56,8 +56,10 @@ def from_pandas_edgelist(
         msg = f"Invalid edge_attr argument: {edge_attr}"
         raise nx.NetworkXError(msg) from e
 
-    edges = []
-    for s, t, attrs in zip(df[source], df[target], eattrs):
-        edges.append((s, t, zip(cols, attrs)))
+    edges = [
+        (s, t, zip(cols, attrs))
+        for s, t, attrs in zip(df[source], df[target], eattrs)
+    ]
+
     g.add_edges_from(edges)
     return g

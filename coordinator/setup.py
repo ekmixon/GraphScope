@@ -106,16 +106,14 @@ class FormatAndLint(Command):
         self.inplace = False
 
     def finalize_options(self):
-        if self.inplace or self.inplace == "True" or self.inplace == "true":
-            self.inplace = True
-        else:
-            self.inplace = False
+        self.inplace = bool(
+            self.inplace or self.inplace == "True" or self.inplace == "true"
+        )
 
     def run(self):
         if self.inplace:
             subprocess.check_call(["python3", "-m", "isort", "."], cwd=repo_root)
             subprocess.check_call(["python3", "-m", "black", "."], cwd=repo_root)
-            subprocess.check_call(["python3", "-m", "flake8", "."], cwd=repo_root)
         else:
             subprocess.check_call(
                 ["python3", "-m", "isort", "--check", "--diff", "."], cwd=repo_root
@@ -123,7 +121,8 @@ class FormatAndLint(Command):
             subprocess.check_call(
                 ["python3", "-m", "black", "--check", "--diff", "."], cwd=repo_root
             )
-            subprocess.check_call(["python3", "-m", "flake8", "."], cwd=repo_root)
+
+        subprocess.check_call(["python3", "-m", "flake8", "."], cwd=repo_root)
 
 
 class CustomBuildPy(build_py):
@@ -137,13 +136,15 @@ class CustomBuildPy(build_py):
         for sources, package in _get_extra_data().items():
             src_dir = os.path.dirname(sources)
             build_dir = os.path.join(*([self.build_lib] + package.split(os.sep)))
-            filenames = []
-            for file in itertools.chain(
-                glob.glob(sources + "/**/*", recursive=True),
-                glob.glob(sources, recursive=False),
-            ):
-                if os.path.isfile(file) or os.path.islink(file):
-                    filenames.append(os.path.relpath(file, src_dir))
+            filenames = [
+                os.path.relpath(file, src_dir)
+                for file in itertools.chain(
+                    glob.glob(f"{sources}/**/*", recursive=True),
+                    glob.glob(sources, recursive=False),
+                )
+                if os.path.isfile(file) or os.path.islink(file)
+            ]
+
             rs.append((package, src_dir, build_dir, filenames))
         return rs
 

@@ -87,7 +87,7 @@ class _FetchHandler(object):
 
     def __init__(self, dag, fetches):
         self._fetches = fetches
-        self._ops = list()
+        self._ops = []
         self._unpack = False
         if not isinstance(self._fetches, (list, tuple)):
             self._fetches = [self._fetches]
@@ -131,11 +131,9 @@ class _FetchHandler(object):
         handle["client_count"] = 1
 
         graph_dag_node = self._fetches[seq]
-        # construct learning graph
-        g = LearningGraph(
+        return LearningGraph(
             graph_dag_node, handle, config, op_result.extra_info.decode("utf-8")
         )
-        return g
 
     def _rebuild_interactive_query(
         self, seq, op: Operation, op_result: op_def_pb2.OpResult
@@ -184,7 +182,7 @@ class _FetchHandler(object):
         return ResultSet(result_set_dag_node)
 
     def wrap_results(self, response: message_pb2.RunStepResponse):
-        rets = list()
+        rets = []
         for seq, op in enumerate(self._ops):
             for op_result in response.results:
                 if op.key == op_result.key:
@@ -214,15 +212,15 @@ class _FetchHandler(object):
                             json.loads(op_result.result.decode("utf-8"))["object_id"]
                         )
                     if op.output_types in (types_pb2.TENSOR, types_pb2.DATAFRAME):
-                        if (
-                            op.type == types_pb2.CONTEXT_TO_DATAFRAME
-                            or op.type == types_pb2.GRAPH_TO_DATAFRAME
-                        ):
+                        if op.type in [
+                            types_pb2.CONTEXT_TO_DATAFRAME,
+                            types_pb2.GRAPH_TO_DATAFRAME,
+                        ]:
                             rets.append(decode_dataframe(op_result.result))
-                        if (
-                            op.type == types_pb2.CONTEXT_TO_NUMPY
-                            or op.type == types_pb2.GRAPH_TO_NUMPY
-                        ):
+                        if op.type in [
+                            types_pb2.CONTEXT_TO_NUMPY,
+                            types_pb2.GRAPH_TO_NUMPY,
+                        ]:
                             rets.append(decode_numpy(op_result.result))
                     if op.output_types == types_pb2.INTERACTIVE_QUERY:
                         rets.append(self._rebuild_interactive_query(seq, op, op_result))
@@ -236,7 +234,7 @@ class _FetchHandler(object):
         existed in fetches.
         """
         unload_dag = op_def_pb2.DagDef()
-        keys_of_fetches = set([op.key for op in self._ops])
+        keys_of_fetches = {op.key for op in self._ops}
         mapping = {
             types_pb2.CREATE_GRAPH: types_pb2.UNLOAD_GRAPH,
             types_pb2.CREATE_APP: types_pb2.UNLOAD_APP,
@@ -595,7 +593,7 @@ class Session(object):
         # parse config, which should be a path to config file, or dict
         # config has highest priority
         if isinstance(config, dict):
-            self._config_params.update(config)
+            self._config_params |= config
         elif isinstance(config, str):
             self._load_config(config, slient=False)
         elif DEFAULT_CONFIG_FILE:
@@ -625,7 +623,7 @@ class Session(object):
                     ),
                     category=DeprecationWarning,
                 )
-                if param == "show_log" or param == "log_level":
+                if param in ["show_log", "log_level"]:
                     warnings.warn(
                         "Please use `graphscope.set_option({0}={1})` instead".format(
                             param, kw.pop(param, None)
@@ -729,14 +727,13 @@ class Session(object):
         if self._config_params["addr"] is not None:
             # get the cluster type after connecting
             return types_pb2.UNDEFINED
+        if self._config_params["cluster_type"] == "hosts":
+            self._run_on_local()
+            return types_pb2.HOSTS
+        elif self._config_params["cluster_type"] == "k8s":
+            return types_pb2.K8S
         else:
-            if self._config_params["cluster_type"] == "hosts":
-                self._run_on_local()
-                return types_pb2.HOSTS
-            elif self._config_params["cluster_type"] == "k8s":
-                return types_pb2.K8S
-            else:
-                raise ValueError("Expect hosts or k8s of cluster_type parameter")
+            raise ValueError("Expect hosts or k8s of cluster_type parameter")
 
     @property
     def engine_config(self):
@@ -817,37 +814,29 @@ class Session(object):
 
         # close all interactive instances
         for instance in self._interactive_instance_dict.values():
-            try:
+            with contextlib.suppress(Exception):
                 if instance is not None:
                     instance.close()
-            except Exception:
-                pass
         self._interactive_instance_dict.clear()
 
         # close all learning instances
         for instance in self._learning_instance_dict.values():
-            try:
+            with contextlib.suppress(Exception):
                 if instance is not None:
                     instance.close()
-            except Exception:
-                pass
         self._learning_instance_dict.clear()
 
         if self._grpc_client:
-            try:
+            with contextlib.suppress(Exception):
                 self._grpc_client.close()
-            except Exception:
-                pass
             self._grpc_client = None
             _session_dict.pop(self._session_id, None)
 
         # clean up
         if self._config_params["addr"] is None:
-            try:
+            with contextlib.suppress(Exception):
                 if self._launcher:
                     self._launcher.stop()
-            except Exception:
-                pass
             self._pod_name_list = []
 
     def _close_interactive_instance(self, instance):
@@ -862,10 +851,8 @@ class Session(object):
 
     def __del__(self):
         # cleanly ignore all exceptions
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:  # pylint: disable=broad-except
-            pass
 
     def _check_closed(self, msg=None):
         """Internal: raise a ValueError if session is closed"""
@@ -885,11 +872,9 @@ class Session(object):
         """Deregister self from the default session,
         close the session and release the resources, ignore all exceptions in close().
         """
-        try:
+        with contextlib.suppress(Exception):
             self._deregister_default()
             self.close()
-        except Exception:
-            pass
 
     def as_default(self):
         """Obtain a context manager that make this object as default session.
@@ -918,10 +903,7 @@ class Session(object):
             self._default_session = None
 
     def _wrapper(self, dag_node):
-        if self.eager():
-            return self.run(dag_node)
-        else:
-            return dag_node
+        return self.run(dag_node) if self.eager() else dag_node
 
     def run(self, fetches, debug=False):
         """Run operations of `fetch`.
@@ -1124,7 +1106,7 @@ class Session(object):
                             interactive_query.error_msg
                         )
 
-        if not graph.graph_type == graph_def_pb2.ARROW_PROPERTY:
+        if graph.graph_type != graph_def_pb2.ARROW_PROPERTY:
             raise InvalidArgumentError("The graph should be a property graph.")
 
         if self.eager():
@@ -1185,17 +1167,16 @@ class Session(object):
         ):
             return self._learning_instance_dict[graph.vineyard_id]
 
-        if sys.platform != "linux" and sys.platform != "linux2":
+        if sys.platform not in ["linux", "linux2"]:
             raise RuntimeError(
                 f"The learning engine currently only supports running on Linux, got {sys.platform}"
             )
 
-        if not graph.graph_type == graph_def_pb2.ARROW_PROPERTY:
+        if graph.graph_type != graph_def_pb2.ARROW_PROPERTY:
             raise InvalidArgumentError("The graph should be a property graph.")
 
-        if self.eager():
-            if not graph.loaded():
-                raise InvalidArgumentError("The graph has already been unloaded")
+        if self.eager() and not graph.loaded():
+            raise InvalidArgumentError("The graph has already been unloaded")
 
         from graphscope.learning.graph import GraphDAGNode as LearningGraphDAGNode
 
@@ -1336,7 +1317,7 @@ def get_option(key):
     if hasattr(gs_config, key):
         return getattr(gs_config, key)
     else:
-        raise ValueError("No such option {} exists.".format(key))
+        raise ValueError(f"No such option {key} exists.")
 
 
 def default_session(session):
@@ -1373,7 +1354,7 @@ def get_default_session():
 def get_session_by_id(handle):
     """Return the session by handle."""
     if handle not in _session_dict:
-        raise ValueError("Session {} not exists.".format(handle))
+        raise ValueError(f"Session {handle} not exists.")
     return _session_dict.get(handle)
 
 

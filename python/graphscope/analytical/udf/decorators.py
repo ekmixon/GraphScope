@@ -204,7 +204,7 @@ def pregel(vd_type, md_type):
 def _check_and_reorder(necessary_defs: Sequence, algo: type, defs: OrderedDict):
     for d in necessary_defs:
         if d not in defs.keys():
-            raise ValueError("Can't find method definition of {}".format(d))
+            raise ValueError(f"Can't find method definition of {d}")
         if type(algo.__dict__[d]) is not staticmethod:
-            raise ValueError("Missing staticmethod decorator on method {}".format(d))
+            raise ValueError(f"Missing staticmethod decorator on method {d}")
         defs.move_to_end(d)

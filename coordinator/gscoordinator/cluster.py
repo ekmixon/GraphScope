@@ -246,7 +246,7 @@ class KubernetesClusterLauncher(Launcher):
 
         # 8000 ~ 9000 is exposed
         self._learning_engine_ports_usage = 8000
-        self._graphlearn_services = dict()
+        self._graphlearn_services = {}
         self._learning_instance_processes = {}
 
         # workspace
@@ -295,9 +295,10 @@ class KubernetesClusterLauncher(Launcher):
 
     def get_vineyard_stream_info(self):
         hosts = [
-            "%s:%s" % (self._saved_locals["namespace"], host)
+            f'{self._saved_locals["namespace"]}:{host}'
             for host in self._pod_name_list
         ]
+
         return "kubernetes", hosts
 
     def set_session_workspace(self, session_id):
@@ -330,16 +331,7 @@ class KubernetesClusterLauncher(Launcher):
                     dir,
                 ]
             )
-            subprocess.check_call(
-                [
-                    "kubectl",
-                    "cp",
-                    path,
-                    "{}:{}".format(pod, path),
-                    "-c",
-                    "engine",
-                ]
-            )
+            subprocess.check_call(["kubectl", "cp", path, f"{pod}:{path}", "-c", "engine"])
 
     def create_interactive_instance(self, config: dict):
         """
@@ -357,9 +349,7 @@ class KubernetesClusterLauncher(Launcher):
             engine_params = json.loads(
                 config[types_pb2.GIE_GREMLIN_ENGINE_PARAMS].s.decode()
             )
-        engine_params = [
-            "{}:{}".format(key, value) for key, value in engine_params.items()
-        ]
+        engine_params = [f"{key}:{value}" for key, value in engine_params.items()]
         enable_gaia = config[types_pb2.GIE_ENABLE_GAIA].b
         env = os.environ.copy()
         env.update({"GRAPHSCOPE_HOME": GRAPHSCOPE_HOME})
@@ -371,12 +361,13 @@ class KubernetesClusterLauncher(Launcher):
             schema_path,
             self.hosts,
             self._engine_container_name,
-            "{}".format(";".join(engine_params)),
+            f'{";".join(engine_params)}',
             str(enable_gaia),
             self._coordinator_name,
         ]
+
         logger.info("Create GIE instance with command: {0}".format(" ".join(cmd)))
-        process = subprocess.Popen(
+        return subprocess.Popen(
             cmd,
             start_new_session=True,
             cwd=os.getcwd(),
@@ -388,7 +379,6 @@ class KubernetesClusterLauncher(Launcher):
             stderr=subprocess.STDOUT,
             bufsize=1,
         )
-        return process
 
     def close_interactive_instance(self, object_id):
         env = os.environ.copy()
@@ -402,7 +392,7 @@ class KubernetesClusterLauncher(Launcher):
             self._engine_container_name,
         ]
         logger.info("Close GIE instance with command: {0}".format(" ".join(cmd)))
-        process = subprocess.Popen(
+        return subprocess.Popen(
             cmd,
             start_new_session=True,
             cwd=os.getcwd(),
@@ -414,7 +404,6 @@ class KubernetesClusterLauncher(Launcher):
             stderr=subprocess.STDOUT,
             bufsize=1,
         )
-        return process
 
     def _create_mars_scheduler(self):
         logger.info("Launching mars scheduler pod for GraphScope ...")
@@ -431,12 +420,9 @@ class KubernetesClusterLauncher(Launcher):
             vineyard_socket_volume_type = "hostPath"
             vineyard_socket_volume_fields = {
                 "type": "Directory",
-                "path": "/var/run/vineyard-%s-%s"
-                % (
-                    self._saved_locals["namespace"],
-                    self._saved_locals["vineyard_daemonset"],
-                ),
+                "path": f'/var/run/vineyard-{self._saved_locals["namespace"]}-{self._saved_locals["vineyard_daemonset"]}',
             }
+
         else:
             vineyard_socket_volume_type = "emptyDir"
             vineyard_socket_volume_fields = {}
@@ -473,9 +459,12 @@ class KubernetesClusterLauncher(Launcher):
             self._saved_locals["vineyard_daemonset"]
         ):
             port = self._random_etcd_listen_client_service_port
-            etcd_endpoints = ["http://%s:%s" % (self._etcd_service_name, port)]
-            for i in range(self._etcd_num_pods):
-                etcd_endpoints.append("http://%s-%d:%s" % (self._etcd_name, i, port))
+            etcd_endpoints = [f"http://{self._etcd_service_name}:{port}"]
+            etcd_endpoints.extend(
+                "http://%s-%d:%s" % (self._etcd_name, i, port)
+                for i in range(self._etcd_num_pods)
+            )
+
             scheduler_builder.add_vineyard_container(
                 name=self._vineyard_container_name,
                 image=self._saved_locals["gs_image"],
@@ -522,12 +511,9 @@ class KubernetesClusterLauncher(Launcher):
             vineyard_socket_volume_type = "hostPath"
             vineyard_socket_volume_fields = {
                 "type": "Directory",
-                "path": "/var/run/vineyard-%s-%s"
-                % (
-                    self._saved_locals["namespace"],
-                    self._saved_locals["vineyard_daemonset"],
-                ),
+                "path": f'/var/run/vineyard-{self._saved_locals["namespace"]}-{self._saved_locals["vineyard_daemonset"]}',
             }
+
         else:
             vineyard_socket_volume_type = "emptyDir"
             vineyard_socket_volume_fields = {}
@@ -580,9 +566,12 @@ class KubernetesClusterLauncher(Launcher):
             self._saved_locals["vineyard_daemonset"]
         ):
             port = self._random_etcd_listen_client_service_port
-            etcd_endpoints = ["http://%s:%s" % (self._etcd_service_name, port)]
-            for i in range(self._etcd_num_pods):
-                etcd_endpoints.append("http://%s-%d:%s" % (self._etcd_name, i, port))
+            etcd_endpoints = [f"http://{self._etcd_service_name}:{port}"]
+            etcd_endpoints.extend(
+                "http://%s-%d:%s" % (self._etcd_name, i, port)
+                for i in range(self._etcd_num_pods)
+            )
+
             engine_builder.add_vineyard_container(
                 name=self._vineyard_container_name,
                 image=self._saved_locals["gs_image"],
@@ -603,9 +592,9 @@ class KubernetesClusterLauncher(Launcher):
                 mem=self._saved_locals["mars_worker_mem"],
                 preemptive=self._saved_locals["preemptive"],
                 port=self._mars_worker_port,
-                scheduler_endpoint="%s:%s"
-                % (self._mars_service_name, self._mars_scheduler_port),
+                scheduler_endpoint=f"{self._mars_service_name}:{self._mars_scheduler_port}",
             )
+
         for name in self._image_pull_secrets:
             engine_builder.add_image_pull_secret(name)
 
@@ -714,7 +703,6 @@ class KubernetesClusterLauncher(Launcher):
         return endpoints[0]
 
     def _create_graphlearn_service(self, object_id, start_port, num_workers):
-        targets = []
         labels = {"name": self._engine_name}
         service_builder = ServiceBuilder(
             self._gle_service_name_prefix + str(object_id),
@@ -723,11 +711,12 @@ class KubernetesClusterLauncher(Launcher):
             selector=labels,
             external_traffic_policy="Local",
         )
-        targets.append(
+        targets = [
             self._core_api.create_namespaced_service(
                 self._saved_locals["namespace"], service_builder.build()
             )
-        )
+        ]
+
         self._graphlearn_services[object_id] = targets
         self._resource_object.extend(targets)
 
@@ -738,14 +727,16 @@ class KubernetesClusterLauncher(Launcher):
             )
             for svc in services.items:
                 if svc.metadata.name == self._gle_service_name_prefix + str(object_id):
-                    endpoints = []
-                    for ip, port_spec in zip(self._pod_host_ip_list, svc.spec.ports):
-                        endpoints.append(
-                            (
-                                "%s:%s" % (ip, port_spec.node_port),
-                                int(port_spec.name.split("-")[-1]),
-                            )
+                    endpoints = [
+                        (
+                            f"{ip}:{port_spec.node_port}",
+                            int(port_spec.name.split("-")[-1]),
                         )
+                        for ip, port_spec in zip(
+                            self._pod_host_ip_list, svc.spec.ports
+                        )
+                    ]
+
                     endpoints.sort(key=lambda ep: ep[1])
                     return [ep[0] for ep in endpoints]
         elif self._saved_locals["service_type"] == "LoadBalancer":
@@ -759,12 +750,11 @@ class KubernetesClusterLauncher(Launcher):
         raise RuntimeError("Get graphlearn service endpoint failed.")
 
     def get_engine_config(self):
-        config = {
+        return {
             "vineyard_service_name": self.get_vineyard_service_name(),
             "vineyard_rpc_endpoint": self.get_vineyard_rpc_endpoint(),
             "mars_endpoint": self.get_mars_scheduler_endpoint(),
         }
-        return config
 
     def _create_interactive_engine_service(self):
         # launch zetcd proxy
@@ -773,17 +763,21 @@ class KubernetesClusterLauncher(Launcher):
         if not zetcd_exec:
             raise RuntimeError("zetcd command not found.")
         port = self._random_etcd_listen_client_service_port
-        etcd_endpoints = ["http://%s:%s" % (self._etcd_service_name, port)]
-        for i in range(self._etcd_num_pods):
-            etcd_endpoints.append("http://%s-%d:%s" % (self._etcd_name, i, port))
+        etcd_endpoints = [f"http://{self._etcd_service_name}:{port}"]
+        etcd_endpoints.extend(
+            "http://%s-%d:%s" % (self._etcd_name, i, port)
+            for i in range(self._etcd_num_pods)
+        )
+
         cmd = [
             zetcd_exec,
             "--zkaddr",
-            "0.0.0.0:{}".format(self._zookeeper_port),
+            f"0.0.0.0:{self._zookeeper_port}",
             "--endpoints",
-            "{}".format(",".join(etcd_endpoints)),
+            f'{",".join(etcd_endpoints)}',
         ]
-        logger.info("zetcd cmd {}".format(" ".join(cmd)))
+
+        logger.info(f'zetcd cmd {" ".join(cmd)}')
 
         self._zetcd_process = subprocess.Popen(
             cmd,
@@ -820,7 +814,7 @@ class KubernetesClusterLauncher(Launcher):
     def _create_services(self):
         self._create_etcd()
         self._etcd_endpoint = self._get_etcd_service_endpoint()
-        logger.info("Etcd is ready, endpoint is {}".format(self._etcd_endpoint))
+        logger.info(f"Etcd is ready, endpoint is {self._etcd_endpoint}")
 
         # create interactive engine service
         logger.info("Creating interactive engine service...")
@@ -859,9 +853,11 @@ class KubernetesClusterLauncher(Launcher):
                         break
 
                     # check container status
-                    selector = ""
-                    for k, v in rs.spec.selector.match_labels.items():
-                        selector += k + "=" + v + ","
+                    selector = "".join(
+                        f"{k}={v},"
+                        for k, v in rs.spec.selector.match_labels.items()
+                    )
+
                     selector = selector[:-1]
 
                     pods = self._core_api.list_namespaced_pod(
@@ -871,7 +867,7 @@ class KubernetesClusterLauncher(Launcher):
 
                     for pod in pods.items:
                         pod_name = pod.metadata.name
-                        field_selector = "involvedObject.name=" + pod_name
+                        field_selector = f"involvedObject.name={pod_name}"
                         stream = kube_watch.Watch().stream(
                             self._core_api.list_namespaced_event,
                             self._saved_locals["namespace"],
@@ -879,7 +875,7 @@ class KubernetesClusterLauncher(Launcher):
                             timeout_seconds=1,
                         )
                         for event in stream:
-                            msg = "[{}]: {}".format(pod_name, event["object"].message)
+                            msg = f'[{pod_name}]: {event["object"].message}'
                             if msg not in event_messages:
                                 event_messages.append(msg)
                                 logger.info(msg)
@@ -900,17 +896,19 @@ class KubernetesClusterLauncher(Launcher):
         self._pod_host_ip_list = []
         pods = self._core_api.list_namespaced_pod(
             namespace=self._saved_locals["namespace"],
-            label_selector="name=%s" % self._engine_name,
+            label_selector=f"name={self._engine_name}",
         )
+
         for pod in pods.items:
             self._pod_name_list.append(pod.metadata.name)
             self._pod_ip_list.append(pod.status.pod_ip)
             self._pod_host_ip_list.append(pod.status.host_ip)
-        assert len(self._pod_ip_list) >= 1
+        assert self._pod_ip_list
         self._host0 = self._pod_ip_list[0]
-        self._analytical_engine_endpoint = "{}:{}".format(
-            self._host0, self._random_analytical_engine_rpc_port
+        self._analytical_engine_endpoint = (
+            f"{self._host0}:{self._random_analytical_engine_rpc_port}"
         )
+
 
         # get vineyard service endpoint
         self._vineyard_service_endpoint = self._get_vineyard_service_endpoint()
@@ -943,15 +941,14 @@ class KubernetesClusterLauncher(Launcher):
 
     def _launch_analytical_engine_locally(self):
         logger.info(
-            "Starting GAE rpc service on {} ...".format(
-                str(self._analytical_engine_endpoint)
-            )
+            f"Starting GAE rpc service on {str(self._analytical_engine_endpoint)} ..."
         )
+
 
         # generate and distribute hostfile
         with open("/tmp/kube_hosts", "w") as f:
             for i in range(len(self._pod_ip_list)):
-                f.write("{} {}\n".format(self._pod_ip_list[i], self._pod_name_list[i]))
+                f.write(f"{self._pod_ip_list[i]} {self._pod_name_list[i]}\n")
 
         for pod in self._pod_name_list:
             subprocess.check_call(
@@ -961,11 +958,12 @@ class KubernetesClusterLauncher(Launcher):
                     self._saved_locals["namespace"],
                     "cp",
                     "/tmp/kube_hosts",
-                    "{}:/tmp/hosts_of_nodes".format(pod),
+                    f"{pod}:/tmp/hosts_of_nodes",
                     "-c",
                     self._engine_container_name,
                 ]
             )
+
 
         # launch engine
         rmcp = ResolveMPICmdPrefix(rsh_agent=True)
@@ -981,7 +979,7 @@ class KubernetesClusterLauncher(Launcher):
             mpi_env["GLOG_v"] = str(self._glog_level)
 
         cmd.extend(["--vineyard_socket", "/tmp/vineyard_workspace/vineyard.sock"])
-        logger.debug("Analytical engine launching command: {}".format(" ".join(cmd)))
+        logger.debug(f'Analytical engine launching command: {" ".join(cmd)}')
 
         env = os.environ.copy()
         env.update(mpi_env)
@@ -1023,19 +1021,14 @@ class KubernetesClusterLauncher(Launcher):
                 except K8SApiException as ex:
                     if ex.status != 404:
                         logger.error(
-                            "Deleting dangling coordinator {} failed: {}".format(
-                                self._coordinator_name, str(ex)
-                            )
+                            f"Deleting dangling coordinator {self._coordinator_name} failed: {str(ex)}"
                         )
+
                     break
                 else:
                     time.sleep(1)
                     if time.time() - start_time > self._saved_locals["timeout_seconds"]:
-                        logger.error(
-                            "Deleting dangling coordinator {} timeout".format(
-                                self._coordinator_name
-                            )
-                        )
+                        logger.error(f"Deleting dangling coordinator {self._coordinator_name} timeout")
 
     def _exists_vineyard_daemonset(self, release):
         # check if vineyard daemonset exists.
@@ -1055,16 +1048,12 @@ class KubernetesClusterLauncher(Launcher):
             self._create_services()
             self._waiting_for_services_ready()
             self._dump_resource_object()
-            logger.info("Engines pod name list: {}".format(self._pod_name_list))
-            logger.info("Engines pod ip list: {}".format(self._pod_ip_list))
-            logger.info("Engines pod host ip list: {}".format(self._pod_host_ip_list))
-            logger.info(
-                "Vineyard service endpoint: {}".format(self._vineyard_service_endpoint)
-            )
+            logger.info(f"Engines pod name list: {self._pod_name_list}")
+            logger.info(f"Engines pod ip list: {self._pod_ip_list}")
+            logger.info(f"Engines pod host ip list: {self._pod_host_ip_list}")
+            logger.info(f"Vineyard service endpoint: {self._vineyard_service_endpoint}")
             if self._saved_locals["with_mars"]:
-                logger.info(
-                    "Mars service endpoint: {}".format(self._mars_service_endpoint)
-                )
+                logger.info(f"Mars service endpoint: {self._mars_service_endpoint}")
             self._launch_analytical_engine_locally()
         except Exception as e:
             time.sleep(1)
@@ -1077,51 +1066,48 @@ class KubernetesClusterLauncher(Launcher):
         return True
 
     def stop(self, is_dangling=False):
-        if not self._closed:
-            for target in self._resource_object:
-                delete_kubernetes_object(
-                    api_client=self._api_client,
-                    target=target,
-                    wait=self._saved_locals["waiting_for_delete"],
-                    timeout_seconds=self._saved_locals["timeout_seconds"],
-                )
-            self._resource_object = []
+        if self._closed:
+            return
+        for target in self._resource_object:
+            delete_kubernetes_object(
+                api_client=self._api_client,
+                target=target,
+                wait=self._saved_locals["waiting_for_delete"],
+                timeout_seconds=self._saved_locals["timeout_seconds"],
+            )
+        self._resource_object = []
 
-            if is_dangling:
-                logger.info("Dangling coordinator detected, cleaning up...")
+        if is_dangling:
+            logger.info("Dangling coordinator detected, cleaning up...")
                 # delete everything inside namespace of graphscope instance
-                if self._saved_locals["delete_namespace"]:
-                    # delete namespace created by graphscope
-                    self._core_api.delete_namespace(self._saved_locals["namespace"])
-                    if self._saved_locals["waiting_for_delete"]:
-                        start_time = time.time()
-                        while True:
-                            try:
-                                self._core_api.read_namespace(
-                                    self._saved_locals["namespace"]
+            if self._saved_locals["delete_namespace"]:
+                # delete namespace created by graphscope
+                self._core_api.delete_namespace(self._saved_locals["namespace"])
+                if self._saved_locals["waiting_for_delete"]:
+                    start_time = time.time()
+                    while True:
+                        try:
+                            self._core_api.read_namespace(
+                                self._saved_locals["namespace"]
+                            )
+                        except K8SApiException as ex:
+                            if ex.status != 404:
+                                logger.error(
+                                    f'Deleting dangling namespace {self._saved_locals["namespace"]} failed: {str(ex)}'
                                 )
-                            except K8SApiException as ex:
-                                if ex.status != 404:
-                                    logger.error(
-                                        "Deleting dangling namespace {} failed: {}".format(
-                                            self._saved_locals["namespace"], str(ex)
-                                        )
-                                    )
-                                break
-                            else:
-                                time.sleep(1)
-                                if (
+
+                            break
+                        else:
+                            time.sleep(1)
+                            if (
                                     time.time() - start_time
                                     > self._saved_locals["timeout_seconds"]
                                 ):
-                                    logger.error(
-                                        "Deleting namespace %s timeout"
-                                        % self._saved_locals["namespace"]
-                                    )
-                else:
-                    # delete coordinator deployment and service
-                    self._delete_dangling_coordinator()
-            self._closed = True
+                                logger.error(f'Deleting namespace {self._saved_locals["namespace"]} timeout')
+            else:
+                # delete coordinator deployment and service
+                self._delete_dangling_coordinator()
+        self._closed = True
 
     def poll(self):
         if self._analytical_engine_process:
@@ -1138,16 +1124,18 @@ class KubernetesClusterLauncher(Launcher):
         handle = json.loads(base64.b64decode(handle.encode("utf-8")).decode("utf-8"))
         hosts = ",".join(
             [
-                "%s:%s" % (pod_name, port)
+                f"{pod_name}:{port}"
                 for pod_name, port in zip(
                     self._pod_name_list,
                     range(
                         self._learning_engine_ports_usage,
-                        self._learning_engine_ports_usage + len(self._pod_name_list),
+                        self._learning_engine_ports_usage
+                        + len(self._pod_name_list),
                     ),
                 )
             ]
         )
+
         handle["server"] = hosts
         handle = base64.b64encode(json.dumps(handle).encode("utf-8")).decode("utf-8")
 

@@ -165,7 +165,7 @@ class TestEdgeSubgraph(TestEdgeSubgraph):
         G = nx.DiGraph()
         G.add_edge(0, 1)
         H = G.edge_subgraph([(0, 1)])
-        assert list(H.predecessors(0)) == []
+        assert not list(H.predecessors(0))
         assert list(H.successors(0)) == [1]
         assert list(H.predecessors(1)) == [0]
-        assert list(H.successors(1)) == []
+        assert not list(H.successors(1))

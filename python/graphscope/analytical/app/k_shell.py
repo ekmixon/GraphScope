@@ -52,5 +52,5 @@ def k_shell(graph, k: int):
         s.close()
 
     """
-    k = int(k)
+    k = k
     return AppAssets(algo="kshell", context="vertex_data")(graph, k)

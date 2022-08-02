@@ -72,10 +72,7 @@ class GSLogger(object):
 
     @staticmethod
     def update():
-        if gs_config.show_log:
-            log_level = gs_config.log_level
-        else:
-            log_level = logging.ERROR
+        log_level = gs_config.log_level if gs_config.show_log else logging.ERROR
         logger.setLevel(log_level)
         for handler in logger.handlers:
             handler.setLevel(log_level)

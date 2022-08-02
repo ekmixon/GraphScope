@@ -47,9 +47,9 @@ from graphscope import nx
 # Nodes
 @pytest.mark.usefixtures("graphscope_session")
 class TestNodeView(_TestNodeView):
-    def setup_class(cls):
-        cls.G = nx.path_graph(9)
-        cls.nv = cls.G.nodes  # NodeView(G)
+    def setup_class(self):
+        self.G = nx.path_graph(9)
+        self.nv = self.G.nodes
 
     def test_str(self):
         # NB: only pass on num_workers=2
@@ -81,11 +81,11 @@ class TestNodeView(_TestNodeView):
 
 
 class TestNodeDataView(_TestNodeDataView):
-    def setup_class(cls):
-        cls.G = nx.path_graph(9)
-        cls.nv = NodeDataView(cls.G)
-        cls.ndv = cls.G.nodes.data(True)
-        cls.nwv = cls.G.nodes.data("foo")
+    def setup_class(self):
+        self.G = nx.path_graph(9)
+        self.nv = NodeDataView(self.G)
+        self.ndv = self.G.nodes.data(True)
+        self.nwv = self.G.nodes.data("foo")
 
     def test_pickle(self):
         pass
@@ -222,8 +222,6 @@ class TestInEdgeDataView(_TestInEdgeDataView):
     def test_iter(self):
         evr = self.eview(self.G)
         ev = evr()
-        for u, v in ev:
-            pass
         iev = iter(ev)
         assert next(iev) == (1, 2)  # NB: only assert pass when num_workers=2
         assert iter(ev) != ev
@@ -280,12 +278,11 @@ class TestEdgeView(_TestEdgeView):
         if self.G.is_directed():
             result = {(n, n + 1) for n in range(1, 8)}
             result.update({(1, 0), (0, 2)})
-            assert ev ^ some_edges == result
         else:
             result = {(n, n - 1) for n in (2, 4, 6)}
             result.update({(n, n + 1) for n in (2, 4, 6)})
             result.update({(0, 2), (8, 7)})
-            assert ev ^ some_edges == result
+        assert ev ^ some_edges == result
         return
 
     def test_pickle(self):
@@ -339,8 +336,6 @@ class TestInEdgeView(_TestInEdgeView):
 
     def test_iter(self):
         ev = self.eview(self.G)
-        for u, v in ev:
-            pass
         iev = iter(ev)
         assert next(iev) == (1, 2)  # NB: only assert pass when num_workers=2
         assert iter(ev) != ev
@@ -371,8 +366,6 @@ class TestDegreeView(_TestDegreeView):
     def test_iter(self):
         dv = self.dview(self.G)
         nlist = list(self.G)
-        for n, d in dv:
-            pass
         idv = iter(dv)
         assert iter(dv) != dv
         assert iter(idv) == idv
@@ -380,8 +373,6 @@ class TestDegreeView(_TestDegreeView):
         assert next(idv) == (nlist[1], dv[nlist[1]])
         # weighted
         dv = self.dview(self.G, weight="foo")
-        for n, d in dv:
-            pass
         idv = iter(dv)
         assert iter(dv) != dv
         assert iter(idv) == idv
@@ -390,7 +381,6 @@ class TestDegreeView(_TestDegreeView):
 
     def test_pickle(self):
         print(type(self.G))
-        pass
 
 
 class TestDiDegreeView(TestDegreeView):
@@ -424,8 +414,6 @@ class TestOutDegreeView(_TestOutDegreeView):
     def test_iter(self):
         dv = self.dview(self.G)
         nlist = list(self.G)
-        for n, d in dv:
-            pass
         idv = iter(dv)
         assert iter(dv) != dv
         assert iter(idv) == idv
@@ -433,8 +421,6 @@ class TestOutDegreeView(_TestOutDegreeView):
         assert next(idv) == (nlist[1], dv[nlist[1]])
         # weighted
         dv = self.dview(self.G, weight="foo")
-        for n, d in dv:
-            pass
         idv = iter(dv)
         assert iter(dv) != dv
         assert iter(idv) == idv
@@ -464,8 +450,6 @@ class TestInDegreeView(_TestInDegreeView):
     def test_iter(self):
         dv = self.dview(self.G)
         nlist = list(self.G)
-        for n, d in dv:
-            pass
         idv = iter(dv)
         assert iter(dv) != dv
         assert iter(idv) == idv
@@ -473,8 +457,6 @@ class TestInDegreeView(_TestInDegreeView):
         assert next(idv) == (nlist[1], dv[nlist[1]])
         # weighted
         dv = self.dview(self.G, weight="foo")
-        for n, d in dv:
-            pass
         idv = iter(dv)
         assert iter(dv) != dv
         assert iter(idv) == idv

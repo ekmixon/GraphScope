@@ -156,7 +156,7 @@ class TestChainsOfViews(test_gvs.TestChainsOfViews):
         SSG = SG.edge_subgraph([(4, 5), (5, 4)])
         USSG = SSG.to_undirected()
         assert sorted(list(USSG)) == [4, 5]
-        assert sorted(USSG.edges) == [(5, 4)] or sorted(USSG.edges) == [(4, 5)]
+        assert sorted(USSG.edges) in [[(5, 4)], [(4, 5)]]
 
     @pytest.mark.skip(reason="not support multigraph.")
     def test_copy_multidisubgraph(self):

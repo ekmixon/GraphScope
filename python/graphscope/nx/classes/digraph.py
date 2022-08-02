@@ -275,7 +275,7 @@ class DiGraph(Graph):
         try:
             return iter(self._succ[n])
         except KeyError:
-            raise NetworkXError("The node %s is not in the digraph." % (n,))
+            raise NetworkXError(f"The node {n} is not in the digraph.")
 
     # digraph definitions
     neighbors = successors
@@ -286,7 +286,7 @@ class DiGraph(Graph):
         try:
             return iter(self._pred[n])
         except KeyError:
-            raise NetworkXError("The node %s is not in the digraph." % (n,))
+            raise NetworkXError(f"The node {n} is not in the digraph.")
 
     @property
     def edges(self):

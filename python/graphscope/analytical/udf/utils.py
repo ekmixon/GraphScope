@@ -111,38 +111,34 @@ class CType(Enum):
             return "bool"
         if self == self.Char:
             return "char"
-        if self == self.String:
-            return "string"
-        return "null"
+        return "string" if self == self.String else "null"
 
     @staticmethod
     def belong_stdint(s):
-        if s in ("int32_t", "int64_t", "uint32_t", "uint64_t"):
-            return True
-        return False
+        return s in ("int32_t", "int64_t", "uint32_t", "uint64_t")
 
     @staticmethod
     def from_string(s):
-        if s == "Int32" or s == "int32" or s == "int":
+        if s in ["Int32", "int32", "int"]:
             return CType.Int32
-        elif s == "Int64" or s == "int64":
+        elif s in ["Int64", "int64"]:
             return CType.Int64
-        elif s == "UInt32" or s == "uint32":
+        elif s in ["UInt32", "uint32"]:
             return CType.UInt32
-        elif s == "UInt64" or s == "uint64":
+        elif s in ["UInt64", "uint64"]:
             return CType.UInt64
-        elif s == "Double" or s == "double":
+        elif s in ["Double", "double"]:
             return CType.Double
-        elif s == "Float" or s == "float":
+        elif s in ["Float", "float"]:
             return CType.Float
-        elif s == "Bool" or s == "bool":
+        elif s in ["Bool", "bool"]:
             return CType.Bool
-        elif s == "Char" or s == "char":
+        elif s in ["Char", "char"]:
             return CType.Char
-        elif s == "String" or s == "string":
+        elif s in ["String", "string"]:
             return CType.String
         else:
-            raise ValueError("Wrong type: {}".format(s))
+            raise ValueError(f"Wrong type: {s}")
 
 
 class PregelAggregatorType(Enum):
@@ -199,31 +195,27 @@ class PregelAggregatorType(Enum):
 
     @staticmethod
     def extract_ctype(s):
-        if s == "kBoolAndAggregator":
+        if s in [
+            "kBoolAndAggregator",
+            "kBoolOrAggregator",
+            "kBoolOverwriteAggregator",
+        ]:
             return CType.Bool
-        elif s == "kBoolOrAggregator":
-            return CType.Bool
-        elif s == "kBoolOverwriteAggregator":
-            return CType.Bool
-        elif s == "kDoubleMinAggregator":
+        elif s in [
+            "kDoubleMinAggregator",
+            "kDoubleMaxAggregator",
+            "kDoubleSumAggregator",
+            "kDoubleProductAggregator",
+            "kDoubleOverwriteAggregator",
+        ]:
             return CType.Double
-        elif s == "kDoubleMaxAggregator":
-            return CType.Double
-        elif s == "kDoubleSumAggregator":
-            return CType.Double
-        elif s == "kDoubleProductAggregator":
-            return CType.Double
-        elif s == "kDoubleOverwriteAggregator":
-            return CType.Double
-        elif s == "kInt64MinAggregator":
-            return CType.Int64
-        elif s == "kInt64MaxAggregator":
-            return CType.Int64
-        elif s == "kInt64SumAggregator":
-            return CType.Int64
-        elif s == "kInt64ProductAggregator":
-            return CType.Int64
-        elif s == "kInt64OverwriteAggregator":
+        elif s in [
+            "kInt64MinAggregator",
+            "kInt64MaxAggregator",
+            "kInt64SumAggregator",
+            "kInt64ProductAggregator",
+            "kInt64OverwriteAggregator",
+        ]:
             return CType.Int64
         elif s == "kTextAppendAggregator":
             return CType.String
@@ -287,7 +279,4 @@ class InMemoryZip(object):
         """
         # close the file first before reading bytes, close repeatly is OK.
         self.zip_file.close()
-        if raw:
-            return self.in_memory_buffer.getvalue()
-        else:
-            return self.in_memory_buffer
+        return self.in_memory_buffer.getvalue() if raw else self.in_memory_buffer

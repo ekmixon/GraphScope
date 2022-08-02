@@ -70,7 +70,7 @@ class Operation(object):
         self._op_def = op_def_pb2.OpDef(
             op=op_type, key=uuid.uuid4().hex, output_type=output_types
         )
-        self._parents = list()
+        self._parents = []
         if config:
             for k, v in config.items():
                 self._op_def.attr[k].CopyFrom(v)
@@ -120,10 +120,10 @@ class Operation(object):
 
         Note that this method has not been used.
         """
-        content = ""
-        for op in self._parents:
-            content += str(op.as_op_def)
-        content += str(self.as_op_def())
+        content = "".join(str(op.as_op_def) for op in self._parents) + str(
+            self.as_op_def()
+        )
+
         return hashlib.sha224(content.encode()).hexdigest()
 
     def is_leaf_op(self):
@@ -143,8 +143,7 @@ class Operation(object):
         sess = get_session_by_id(self._session_id)
         if not self._leaf:
             sess.dag.add_op(self)
-        res = sess.run(self)
-        return res
+        return sess.run(self)
 
     def add_parent(self, op):
         self._parents.append(op)

@@ -18,6 +18,7 @@
     ./server.py [<port>]
 """
 
+
 import ast
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import logging
@@ -25,8 +26,8 @@ import traceback
 
 
 executed_code = []
-global_ctx = dict()
-local_ctx = dict()
+global_ctx = {}
+local_ctx = {}
 
 
 class MaxGraphTestServer(BaseHTTPRequestHandler):
@@ -47,7 +48,7 @@ class MaxGraphTestServer(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers["Content-Length"])
         code = post_data = self.rfile.read(content_length).decode("utf-8")
-        logging.info("eval: %s" % code)
+        logging.info(f"eval: {code}")
         try:
             is_expression = False
             try:
@@ -63,13 +64,13 @@ class MaxGraphTestServer(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-type", "text/plain")
             self.end_headers()
-            self.wfile.write(("%s" % r).encode("utf-8"))
+            self.wfile.write(f"{r}".encode("utf-8"))
         except Exception as e:
             print(e, traceback.format_exc())
             self.send_response(500)
             self.send_header("Content-type", "text/plain")
             self.end_headers()
-            self.wfile.write(("%s" % e).encode("utf-8"))
+            self.wfile.write(f"{e}".encode("utf-8"))
         logging.info("eval done")
 
 

@@ -25,8 +25,8 @@ __all__ = ["declare", "Vertex"]
 
 # Emulated PIE type
 class GraphScopeMetaType(type):
-    def __getitem__(type, ix):
-        return array(type, ix)
+    def __getitem__(self, ix):
+        return array(self, ix)
 
 
 GraphScopeTypeObject = GraphScopeMetaType("GrapeTypeObject", (object,), {})

@@ -319,8 +319,6 @@ class VertexDataContextDAGNode(BaseContextDAGNode):
                 raise SyntaxError("Selector of v must be 'v.id' or 'v.data'")
         elif segments[0] == "e":
             raise NotImplementedError("Selector of e not supported yet")
-            if selector not in ("e.src", "e.dst", "e.data"):
-                raise SyntaxError("Selector of e must be 'e.src', 'e.dst' or 'e.data'")
         elif segments[0] == "r":
             if selector != "r":
                 raise SyntaxError("Selector of r must be 'r'")
@@ -452,11 +450,7 @@ class VertexPropertyContextDAGNode(BaseContextDAGNode):
                 raise SyntaxError("Selector of v must be 'v.id' or 'v.data'")
         elif segments[0] == "e":
             raise NotImplementedError("Selector of e not supported yet")
-        elif segments[0] == "r":
-            # The second part of selector or r is user defined name.
-            # So we will allow any str
-            pass
-        else:
+        elif segments[0] != "r":
             raise SyntaxError(
                 "Invalid selector: {0}, choose from v / e / r".format(selector)
             )
@@ -673,9 +667,7 @@ class DynamicVertexDataContext(collections.abc.Mapping):
             self._key is not None,
             "Context key error, maybe it is not connected to engine.",
         )
-        return hashlib.sha256(
-            "{}.{}".format(self._key, self._graph.signature).encode("utf-8")
-        )
+        return hashlib.sha256(f"{self._key}.{self._graph.signature}".encode("utf-8"))
 
     def __repr__(self):
         return f"graphscope.framework.context.{self.__class__.__name__} from graph {str(self._graph)}"

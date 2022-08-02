@@ -135,7 +135,7 @@ class KubernetesClusterLauncher(Launcher):
             self._coordinator_service_name_prefix + self._instance_id
         )
         # environment variable
-        self._coordinator_envs = kwargs.pop("coordinator_envs", dict())
+        self._coordinator_envs = kwargs.pop("coordinator_envs", {})
 
         if "GS_COORDINATOR_MODULE_NAME" in os.environ:
             self._coordinator_module_name = os.environ["GS_COORDINATOR_MODULE_NAME"]
@@ -172,7 +172,7 @@ class KubernetesClusterLauncher(Launcher):
 
     def _get_free_namespace(self):
         while True:
-            namespace = "gs-" + random_string(6)
+            namespace = f"gs-{random_string(6)}"
             try:
                 self._core_api.read_namespace(namespace)
             except K8SApiException as e:
@@ -230,9 +230,9 @@ class KubernetesClusterLauncher(Launcher):
     def _create_namespace(self):
         if self._namespace is None:
             self._namespace = try_to_read_namespace_from_context()
-            # Doesn't have any namespace info in kube context.
-            if self._namespace is None:
-                self._namespace = self._get_free_namespace()
+        # Doesn't have any namespace info in kube context.
+        if self._namespace is None:
+            self._namespace = self._get_free_namespace()
         if not self._namespace_exist(self._namespace):
             self._core_api.create_namespace(NamespaceBuilder(self._namespace).build())
             self._delete_namespace = True
@@ -305,8 +305,6 @@ class KubernetesClusterLauncher(Launcher):
 
     def _create_coordinator(self):
         logger.info("Launching coordinator...")
-        targets = []
-
         labels = {"name": self._coordinator_name}
         # create coordinator service
         service_builder = ServiceBuilder(
@@ -315,11 +313,11 @@ class KubernetesClusterLauncher(Launcher):
             port=self._random_coordinator_service_port,
             selector=labels,
         )
-        targets.append(
+        targets = [
             self._core_api.create_namespaced_service(
                 self._namespace, service_builder.build()
             )
-        )
+        ]
 
         time.sleep(1)
 
@@ -344,7 +342,7 @@ class KubernetesClusterLauncher(Launcher):
             "GREMLIN_EXPOSE": self._saved_locals["k8s_service_type"],
         }
         if "KUBE_API_ADDRESS" in os.environ:
-            envs.update({"KUBE_API_ADDRESS": os.environ["KUBE_API_ADDRESS"]})
+            envs["KUBE_API_ADDRESS"] = os.environ["KUBE_API_ADDRESS"]
 
         coordinator_builder.add_simple_envs(envs)
 
@@ -400,7 +398,7 @@ class KubernetesClusterLauncher(Launcher):
             "--k8s_image_pull_policy",
             self._saved_locals["k8s_image_pull_policy"],
             "--k8s_image_pull_secrets",
-            self._image_pull_secrets_str if self._image_pull_secrets_str else '""',
+            self._image_pull_secrets_str or '""',
             "--k8s_coordinator_name",
             self._coordinator_name,
             "--k8s_coordinator_service_name",
@@ -444,6 +442,7 @@ class KubernetesClusterLauncher(Launcher):
             "--k8s_delete_namespace",
             str(self._delete_namespace),
         ]
+
         return ["-c", " ".join(cmd)]
 
     def _create_services(self):
@@ -455,9 +454,10 @@ class KubernetesClusterLauncher(Launcher):
         )
 
         # get deployment pods
-        selector = ""
-        for k, v in deployment.spec.selector.match_labels.items():
-            selector += k + "=" + v + ","
+        selector = "".join(
+            f"{k}={v}," for k, v in deployment.spec.selector.match_labels.items()
+        )
+
         selector = selector[:-1]
         pods = self._core_api.list_namespaced_pod(
             namespace=self._namespace, label_selector=selector
@@ -484,7 +484,7 @@ class KubernetesClusterLauncher(Launcher):
                 pod_watcher.stop()
 
     def _try_to_get_coordinator_service_from_configmap(self):
-        config_map_name = "gs-coordinator-{}".format(self._instance_id)
+        config_map_name = f"gs-coordinator-{self._instance_id}"
         start_time = time.time()
         while True:
             try:
@@ -494,9 +494,7 @@ class KubernetesClusterLauncher(Launcher):
             except K8SApiException:
                 pass
             else:
-                return "{}:{}".format(
-                    api_response.data["ip"], api_response.data["port"]
-                )
+                return f'{api_response.data["ip"]}:{api_response.data["port"]}'
             time.sleep(1)
             if time.time() - start_time > self._saved_locals["timeout_seconds"]:
                 raise TimeoutError("Gete coordinator service from configmap timeout")
@@ -518,8 +516,9 @@ class KubernetesClusterLauncher(Launcher):
 
     def _dump_coordinator_failed_status(self):
         # Dump failed status even show_log is False
-        if not gs_config.show_log:
-            for pod_watcher in self._coordinator_pods_watcher:
+        for pod_watcher in self._coordinator_pods_watcher:
+                # Dump failed status even show_log is False
+            if not gs_config.show_log:
                 while True:
                     try:
                         message = pod_watcher.poll(timeout_seconds=3)
@@ -528,8 +527,7 @@ class KubernetesClusterLauncher(Launcher):
                         break
                     else:
                         logger.error(message, extra={"simple": True})
-        else:
-            for pod_watcher in self._coordinator_pods_watcher:
+            else:
                 pod_watcher.stop()
 
     def start(self):
@@ -572,44 +570,45 @@ class KubernetesClusterLauncher(Launcher):
             TimeoutError:
                 Waiting for stop instance timeout when ``wait`` or ``_waiting_for_delete`` is True.
         """
-        if not self._closed:
-            # delete resources created by graphscope inside namespace
-            # make sure delete permission resouces in the end
-            for target in reversed(self._resource_object):
-                delete_kubernetes_object(
-                    api_client=self._api_client,
-                    target=target,
-                    wait=self._saved_locals["k8s_waiting_for_delete"],
-                    timeout_seconds=self._saved_locals["timeout_seconds"],
-                )
-            self._resource_object = []
-            if self._delete_namespace:
-                # delete namespace
-                api = CoreV1Api(self._api_client)
-                try:
-                    api.delete_namespace(self._namespace)
-                except K8SApiException:
-                    # namespace already deleted.
-                    pass
-                else:
-                    if wait or self._saved_locals["k8s_waiting_for_delete"]:
-                        start_time = time.time()
-                        while True:
-                            try:
-                                api.read_namespace(self._namespace)
-                            except K8SApiException as ex:
-                                if ex.status != 404:
-                                    raise
+        if self._closed:
+            return
+        # delete resources created by graphscope inside namespace
+        # make sure delete permission resouces in the end
+        for target in reversed(self._resource_object):
+            delete_kubernetes_object(
+                api_client=self._api_client,
+                target=target,
+                wait=self._saved_locals["k8s_waiting_for_delete"],
+                timeout_seconds=self._saved_locals["timeout_seconds"],
+            )
+        self._resource_object = []
+        if self._delete_namespace:
+            # delete namespace
+            api = CoreV1Api(self._api_client)
+            try:
+                api.delete_namespace(self._namespace)
+            except K8SApiException:
+                # namespace already deleted.
+                pass
+            else:
+                if wait or self._saved_locals["k8s_waiting_for_delete"]:
+                    start_time = time.time()
+                    while True:
+                        try:
+                            api.read_namespace(self._namespace)
+                        except K8SApiException as ex:
+                            if ex.status != 404:
+                                raise
+                            break
+                        else:
+                            time.sleep(1)
+                            if (
+                                self._saved_locals["timeout_seconds"]
+                                and time.time() - start_time
+                                > self._saved_locals["timeout_seconds"]
+                            ):
+                                logger.info(
+                                    "Deleting namespace %s timeout", self._namespace
+                                )
                                 break
-                            else:
-                                time.sleep(1)
-                                if (
-                                    self._saved_locals["timeout_seconds"]
-                                    and time.time() - start_time
-                                    > self._saved_locals["timeout_seconds"]
-                                ):
-                                    logger.info(
-                                        "Deleting namespace %s timeout", self._namespace
-                                    )
-                                    break
-            self._closed = True
+        self._closed = True

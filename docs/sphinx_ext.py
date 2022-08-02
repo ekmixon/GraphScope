@@ -35,10 +35,7 @@ def resolve_git_tags():
 
 
 def concat_path(page, base):
-    if '/' in page:
-        return page[:(page.rfind('/') + 1)] + base
-    else:
-        return base
+    return page[:(page.rfind('/') + 1)] + base if '/' in page else base
 
 
 class TocTreeExt(TocTree):
@@ -56,8 +53,9 @@ class TocTreeExt(TocTree):
             kwargs['maxdepth'] = 0
         kwargs['collapse'] = collapse
         for toctreenode in doctree.traverse(addnodes.toctree):
-            toctree = self.resolve(docname, builder, toctreenode, prune=True, **kwargs)
-            if toctree:
+            if toctree := self.resolve(
+                docname, builder, toctreenode, prune=True, **kwargs
+            ):
                 toctrees.append(toctree)
         if not toctrees:
             return None

@@ -34,9 +34,7 @@ logger = logging.getLogger("graphscope")
 if sys.version_info >= (3, 6):
 
     def _path_to_string(path):
-        if isinstance(path, os.PathLike):
-            return os.fspath(path)
-        return path
+        return os.fspath(path) if isinstance(path, os.PathLike) else path
 
 
 elif sys.version_info >= (3, 4):
@@ -44,9 +42,7 @@ elif sys.version_info >= (3, 4):
     def _path_to_string(path):
         import pathlib
 
-        if isinstance(path, pathlib.Path):
-            return str(path)
-        return path
+        return str(path) if isinstance(path, pathlib.Path) else path
 
 
 else:
@@ -113,7 +109,7 @@ def _extract_archive(fpath, path=".", archive_format="auto"):
         if archive_type == "tar":
             open_fn = tarfile.open
             is_match_fn = tarfile.is_tarfile
-        if archive_type == "zip":
+        elif archive_type == "zip":
             open_fn = zipfile.ZipFile
             is_match_fn = zipfile.is_zipfile
 
@@ -146,9 +142,7 @@ def validate_file(fpath, file_hash, algorithm="auto", chunk_size=65535):
     Returns (bool): Whether the file is valid.
     """
     hasher = _resolve_hasher(algorithm, file_hash)
-    if str(_hash_file(fpath, hasher, chunk_size)) == str(file_hash):
-        return True
-    return False
+    return str(_hash_file(fpath, hasher, chunk_size)) == str(file_hash)
 
 
 def download_file(
@@ -208,16 +202,17 @@ def download_file(
     download = False
     if os.path.exists(fpath):
         # file found, verify if a hash was provided
-        if file_hash is not None:
-            if not validate_file(fpath, file_hash, algorithm=hash_algorithm):
-                logger.warning(
-                    "A local file was found, but it seems to be incomplete "
-                    "or outdated because the %s file hash does not match the "
-                    "original value of %s, so we will re-download the data.",
-                    hash_algorithm,
-                    file_hash,
-                )
-                download = True
+        if file_hash is not None and not validate_file(
+            fpath, file_hash, algorithm=hash_algorithm
+        ):
+            logger.warning(
+                "A local file was found, but it seems to be incomplete "
+                "or outdated because the %s file hash does not match the "
+                "original value of %s, so we will re-download the data.",
+                hash_algorithm,
+                file_hash,
+            )
+            download = True
     else:
         download = True
 

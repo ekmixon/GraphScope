@@ -52,14 +52,12 @@ class OutArchive(object):
         return block
 
     def get_size(self):
-        size = struct.unpack("q", self.get_block(self._size_of_int64))[0]
-        return size
+        return struct.unpack("q", self.get_block(self._size_of_int64))[0]
 
     def get_sized_block(self):
         """Peek a block with the size as the prefix bytes."""
         size = self.get_size()
-        block = self.get_block(size)
-        return block
+        return self.get_block(size)
 
     def get_string(self):
         """Peek a string.
@@ -67,11 +65,9 @@ class OutArchive(object):
         equivalents to the length.
         """
         size = self.get_size()
-        string = self.get_block(size).tobytes().decode("utf-8")
-        return string
+        return self.get_block(size).tobytes().decode("utf-8")
 
     def get_int(self):
         """Peek a int."""
         size_of_int = struct.calcsize("i")
-        i = struct.unpack("i", self.get_block(size_of_int))[0]
-        return i
+        return struct.unpack("i", self.get_block(size_of_int))[0]

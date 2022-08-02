@@ -95,7 +95,7 @@ def ensure_python(specs):
     if not isinstance(specs, (list, tuple)):
         specs = [specs]
     v = sys.version_info
-    part = "%s.%s" % (v.major, v.minor)
+    part = f"{v.major}.{v.minor}"
     for spec in specs:
         if part == spec:
             return
@@ -104,7 +104,7 @@ def ensure_python(specs):
                 return
         except SyntaxError:
             pass
-    raise ValueError("Python version %s unsupported" % part)
+    raise ValueError(f"Python version {part} unsupported")
 
 
 def find_packages(top=HERE):
@@ -211,7 +211,7 @@ def command_for_func(func):
 
 def run(cmd, **kwargs):
     """Echo a command before running it.  Defaults to repo as cwd"""
-    log.info("> " + list2cmdline(cmd))
+    log.info(f"> {list2cmdline(cmd)}")
     kwargs.setdefault("cwd", HERE)
     kwargs.setdefault("shell", os.name == "nt")
     if not isinstance(cmd, (list, tuple)) and os.name != "nt":
@@ -258,13 +258,13 @@ class BaseCommand(Command):
 def combine_commands(*commands):
     """Return a Command that combines several commands."""
 
+
+
     class CombinedCommand(Command):
         user_options = []
 
         def initialize_options(self):
-            self.commands = []
-            for C in commands:
-                self.commands.append(C(self.distribution))
+            self.commands = [C(self.distribution) for C in commands]
             for c in self.commands:
                 c.initialize_options()
 
@@ -275,6 +275,7 @@ def combine_commands(*commands):
         def run(self):
             for c in self.commands:
                 c.run()
+
 
     return CombinedCommand
 
@@ -289,18 +290,12 @@ def compare_recursive_mtime(path, cutoff, newest=True):
     """
     if os.path.isfile(path):
         mt = mtime(path)
-        if newest:
-            if mt > cutoff:
-                return True
-        elif mt < cutoff:
+        if newest and mt > cutoff or not newest and mt < cutoff:
             return True
     for dirname, _, filenames in os.walk(path, topdown=False):
         for filename in filenames:
             mt = mtime(pjoin(dirname, filename))
-            if newest:  # Put outside of loop?
-                if mt > cutoff:
-                    return True
-            elif mt < cutoff:
+            if newest and mt > cutoff or not newest and mt < cutoff:
                 return True
     return False
 
@@ -313,10 +308,12 @@ def recursive_mtime(path, newest=True):
     for dirname, dirnames, filenames in os.walk(path, topdown=False):
         for filename in filenames:
             mt = mtime(pjoin(dirname, filename))
-            if newest:  # Put outside of loop?
-                if mt >= (current_extreme or mt):
-                    current_extreme = mt
-            elif mt <= (current_extreme or mt):
+            if (
+                newest
+                and mt >= (current_extreme or mt)
+                or not newest
+                and mt <= (current_extreme or mt)
+            ):
                 current_extreme = mt
     return current_extreme
 
@@ -353,6 +350,8 @@ def install_npm(
         The npm executable name, or a tuple of ['node', executable].
     """
 
+
+
     class NPM(BaseCommand):
         description = "install package.json dependencies using npm"
 
@@ -367,11 +366,7 @@ def install_npm(
             npm_cmd = npm
 
             if npm is None:
-                if is_yarn:
-                    npm_cmd = ["yarn"]
-                else:
-                    npm_cmd = ["npm"]
-
+                npm_cmd = ["yarn"] if is_yarn else ["npm"]
             if not which(npm_cmd[0]):
                 log.error(
                     "`{0}` unavailable.  If you're running this command "
@@ -394,6 +389,7 @@ def install_npm(
             if should_build:
                 run(npm_cmd + ["run", build_cmd], cwd=node_package)
 
+
     return NPM
 
 
@@ -405,14 +401,16 @@ def ensure_targets(targets):
     Note: The check is skipped if the `--skip-npm` flag is used.
     """
 
+
+
     class TargetsCheck(BaseCommand):
         def run(self):
             if skip_npm:
                 log.info("Skipping target checks")
                 return
-            missing = [t for t in targets if not os.path.exists(t)]
-            if missing:
-                raise ValueError(("missing files: %s" % missing))
+            if missing := [t for t in targets if not os.path.exists(t)]:
+                raise ValueError(f"missing files: {missing}")
+
 
     return TargetsCheck
 
@@ -486,6 +484,8 @@ def _wrap_command(cmds, cls, strict=True):
         Wether to raise errors when a pre-command fails.
     """
 
+
+
     class WrappedCommand(cls):
         def run(self):
             if not getattr(self, "uninstall", None):
@@ -494,13 +494,11 @@ def _wrap_command(cmds, cls, strict=True):
                 except Exception:
                     if strict:
                         raise
-                    else:
-                        pass
             # update package data
             update_package_data(self.distribution)
 
-            result = cls.run(self)
-            return result
+            return cls.run(self)
+
 
     return WrappedCommand
 
@@ -508,10 +506,12 @@ def _wrap_command(cmds, cls, strict=True):
 def _get_file_handler(package_data_spec, data_files_spec):
     """Get a package_data and data_files handler command."""
 
+
+
     class FileHandler(BaseCommand):
         def run(self):
             package_data = self.distribution.package_data
-            package_spec = package_data_spec or dict()
+            package_spec = package_data_spec or {}
 
             for (key, patterns) in package_spec.items():
                 package_data[key] = _get_package_data(key, patterns)
@@ -519,6 +519,7 @@ def _get_file_handler(package_data_spec, data_files_spec):
             self.distribution.data_files = _get_data_files(
                 data_files_spec, self.distribution.data_files
             )
+
 
     return FileHandler
 
@@ -566,11 +567,7 @@ def _get_data_files(data_specs, existing, top=HERE):
                 full_path = full_path[:-1]
             file_data[full_path].append(fname)
 
-    # Construct the data files spec.
-    data_files = []
-    for (path, files) in file_data.items():
-        data_files.append((path, files))
-    return data_files
+    return list(file_data.items())
 
 
 def _get_files(file_patterns, top=HERE):
@@ -653,23 +650,22 @@ def _iexplode_path(path):
     Splits path recursively with os.path.split().
     """
     (head, tail) = os.path.split(path)
-    if not head or (not tail and head == path):
-        if head:
-            yield head
+    if not head:
+        yield tail
+        return
+    elif (not tail and head == path):
+        yield head
         if tail or not head:
             yield tail
         return
-    for p in _iexplode_path(head):
-        yield p
+    yield from _iexplode_path(head)
     yield tail
 
 
 def _translate_glob(pat):
     """Translate a glob PATTERN to a regular expression."""
-    translated_parts = []
-    for part in _iexplode_path(pat):
-        translated_parts.append(_translate_glob_part(part))
-    os_sep_class = "[%s]" % re.escape(SEPARATORS)
+    translated_parts = [_translate_glob_part(part) for part in _iexplode_path(pat)]
+    os_sep_class = f"[{re.escape(SEPARATORS)}]"
     res = _join_translated(translated_parts, os_sep_class)
     return "{res}\\Z(?ms)".format(res=res)
 
@@ -680,14 +676,10 @@ def _join_translated(translated_parts, os_sep_class):
     This is different from a simple join, as care need to be taken
     to allow ** to match ZERO or more directories.
     """
-    res = ""
-    for part in translated_parts[:-1]:
-        if part == ".*":
-            # drop separator, since it is optional
-            # (** matches ZERO or more dirs)
-            res += part
-        else:
-            res += part + os_sep_class
+    res = "".join(
+        part if part == ".*" else part + os_sep_class
+        for part in translated_parts[:-1]
+    )
 
     if translated_parts[-1] == ".*":
         # Final part is **
@@ -708,30 +700,30 @@ def _translate_glob_part(pat):
     res = []
     while i < n:
         c = pat[i]
-        i = i + 1
+        i += 1
         if c == "*":
             # Match anything but path separators:
-            res.append("[^%s]*" % SEPARATORS)
+            res.append(f"[^{SEPARATORS}]*")
         elif c == "?":
-            res.append("[^%s]?" % SEPARATORS)
+            res.append(f"[^{SEPARATORS}]?")
         elif c == "[":
             j = i
             if j < n and pat[j] == "!":
-                j = j + 1
+                j += 1
             if j < n and pat[j] == "]":
-                j = j + 1
+                j += 1
             while j < n and pat[j] != "]":
-                j = j + 1
+                j += 1
             if j >= n:
                 res.append("\\[")
             else:
                 stuff = pat[i:j].replace("\\", "\\\\")
                 i = j + 1
                 if stuff[0] == "!":
-                    stuff = "^" + stuff[1:]
+                    stuff = f"^{stuff[1:]}"
                 elif stuff[0] == "^":
                     stuff = "\\" + stuff
-                res.append("[%s]" % stuff)
+                res.append(f"[{stuff}]")
         else:
             res.append(re.escape(c))
     return "".join(res)

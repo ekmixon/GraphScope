@@ -81,7 +81,7 @@ def degree_assortativity_coefficient(G, x="out", y="in", weight=None):
     .. [2] Foster, J.G., Foster, D.V., Grassberger, P. & Paczuski, M.
        Edge direction and the structure of networks, PNAS 107, 10815-20 (2010).
     """
-    weighted = False if weight is None else True
+    weighted = weight is not None
     ctx = AppAssets(algo="degree_assortativity_coefficient", context="tensor")(
         G,
         source_degree_type=x,

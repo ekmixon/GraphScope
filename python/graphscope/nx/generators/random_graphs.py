@@ -119,7 +119,7 @@ def fast_gnp_random_graph(n, p, seed=None, directed=False):
                 w = w + 1
             while v < n <= w:
                 w = w - n
-                v = v + 1
+                v += 1
                 if v == w:  # avoid self loops
                     w = w + 1
             if v < n:
@@ -132,7 +132,7 @@ def fast_gnp_random_graph(n, p, seed=None, directed=False):
             w = w + 1 + int(lr / lp)
             while w >= v and v < n:
                 w = w - v
-                v = v + 1
+                v += 1
             if v < n:
                 G.add_edge(v, w)
     return G
@@ -233,11 +233,7 @@ def dense_gnm_random_graph(n, m, seed=None):
         Volume 2/Seminumerical algorithms, Third Edition, Addison-Wesley, 1997.
     """
     mmax = n * (n - 1) / 2
-    if m >= mmax:
-        G = complete_graph(n)
-    else:
-        G = empty_graph(n)
-
+    G = complete_graph(n) if m >= mmax else empty_graph(n)
     if n == 1 or m >= mmax:
         return G
 
@@ -285,10 +281,7 @@ def gnm_random_graph(n, m, seed=None, directed=False):
     dense_gnm_random_graph
 
     """
-    if directed:
-        G = nx.DiGraph()
-    else:
-        G = nx.Graph()
+    G = nx.DiGraph() if directed else nx.Graph()
     G.add_nodes_from(range(n))
 
     if n == 1:
@@ -307,9 +300,8 @@ def gnm_random_graph(n, m, seed=None, directed=False):
         v = seed.choice(nlist)
         if u == v or G.has_edge(u, v):
             continue
-        else:
-            G.add_edge(u, v)
-            edge_count = edge_count + 1
+        G.add_edge(u, v)
+        edge_count += 1
     return G
 
 
@@ -363,7 +355,7 @@ def newman_watts_strogatz_graph(n, k, p, seed=None):
     fromv = nlist
     # connect the k/2 neighbors
     for j in range(1, k // 2 + 1):
-        tov = fromv[j:] + fromv[0:j]  # the first j are now last
+        tov = fromv[j:] + fromv[:j]
         for i in range(len(fromv)):
             G.add_edge(fromv[i], tov[i])
     # for each edge u-v, with probability p, randomly select existing
@@ -435,13 +427,13 @@ def watts_strogatz_graph(n, k, p, seed=None):
     nodes = list(range(n))  # nodes are labeled 0 to n-1
     # connect each node to k/2 neighbors
     for j in range(1, k // 2 + 1):
-        targets = nodes[j:] + nodes[0:j]  # first j nodes are now last in list
+        targets = nodes[j:] + nodes[:j]
         G.add_edges_from(zip(nodes, targets))
     # rewire edges from each node
     # loop over all nodes in order (label) and neighbors in order (distance)
     # no self loops or multiple edges allowed
     for j in range(1, k // 2 + 1):  # outer loop is neighbors
-        targets = nodes[j:] + nodes[0:j]  # first j nodes are now last in list
+        targets = nodes[j:] + nodes[:j]
         # inner loop in node order
         for u, v in zip(nodes, targets):
             if seed.random() < p:
@@ -501,7 +493,7 @@ def connected_watts_strogatz_graph(n, k, p, tries=100, seed=None):
        Collective dynamics of small-world networks,
        Nature, 393, pp. 440--442, 1998.
     """
-    for i in range(tries):
+    for _ in range(tries):
         # seed is an RNG so should change sequence each call
         G = watts_strogatz_graph(n, k, p, seed)
         if nx.is_connected(G):
@@ -765,10 +757,7 @@ def dual_barabasi_albert_graph(n, m1, m2, p, seed=None):
     # Start adding the remaining nodes.
     source = max(m1, m2)
     # Pick which m to use first time (m1 or m2)
-    if seed.random() < p:
-        m = m1
-    else:
-        m = m2
+    m = m1 if seed.random() < p else m2
     while source < n:
         # Add edges to m nodes from the source.
         G.add_edges_from(zip([source] * m, targets))
@@ -777,10 +766,7 @@ def dual_barabasi_albert_graph(n, m1, m2, p, seed=None):
         # And the new node "source" has m edges to add to the list.
         repeated_nodes.extend([source] * m)
         # Pick which m to use next time (m1 or m2)
-        if seed.random() < p:
-            m = m1
-        else:
-            m = m2
+        m = m1 if seed.random() < p else m2
         # Now choose m unique nodes from the existing nodes
         # Pick uniformly from repeated_nodes (preferential attachment)
         targets = _random_subset(repeated_nodes, m, seed)
@@ -868,7 +854,7 @@ def extended_barabasi_albert_graph(n, m, p, q, seed=None):
         if a_probability < p and G.size() <= clique_size - m:
             # Select the nodes where an edge can be added
             elligible_nodes = [nd for nd, deg in G.degree() if deg < clique_degree]
-            for i in range(m):
+            for _ in range(m):
                 # Choosing a random source node from elligible_nodes
                 src_node = seed.choice(elligible_nodes)
 
@@ -896,13 +882,12 @@ def extended_barabasi_albert_graph(n, m, p, q, seed=None):
                 ):
                     elligible_nodes.remove(dest_node)
 
-        # Rewiring m edges, if there are enough edges
         elif p <= a_probability < (p + q) and m <= G.size() < clique_size:
             # Selecting nodes that have at least 1 edge but that are not
             # fully connected to ALL other nodes (center of star).
             # These nodes are the pivot nodes of the edges to rewire
             elligible_nodes = [nd for nd, deg in G.degree() if 0 < deg < clique_degree]
-            for i in range(m):
+            for _ in range(m):
                 # Choosing a random source node
                 node = seed.choice(elligible_nodes)
 
@@ -933,11 +918,9 @@ def extended_barabasi_albert_graph(n, m, p, q, seed=None):
                 if dest_node in elligible_nodes:
                     if G.degree(dest_node) == clique_degree:
                         elligible_nodes.remove(dest_node)
-                else:
-                    if G.degree(dest_node) == 1:
-                        elligible_nodes.append(dest_node)
+                elif G.degree(dest_node) == 1:
+                    elligible_nodes.append(dest_node)
 
-        # Adding new node with m edges
         else:
             # Select the edges' nodes by preferential attachment
             targets = _random_subset(attachment_preference, m, seed)
@@ -1020,22 +1003,21 @@ def powerlaw_cluster_graph(n, m, p, seed=None):
         count = 1
         while count < m:  # add m-1 more new links
             if seed.random() < p:  # clustering step: add triangle
-                neighborhood = [
+                if neighborhood := [
                     nbr
                     for nbr in G.neighbors(target)
-                    if not G.has_edge(source, nbr) and not nbr == source
-                ]
-                if neighborhood:  # if there is a neighbor without a link
+                    if not G.has_edge(source, nbr) and nbr != source
+                ]:
                     nbr = seed.choice(neighborhood)
                     G.add_edge(source, nbr)  # add triangle
                     repeated_nodes.append(nbr)
-                    count = count + 1
+                    count += 1
                     continue  # go to top of while loop
             # else do preferential attachment step if above fails
             target = possible_targets.pop()
             G.add_edge(source, target)
             repeated_nodes.append(target)
-            count = count + 1
+            count += 1
 
         repeated_nodes.extend([source] * m)  # add source node to list m times
         source += 1
@@ -1128,9 +1110,8 @@ def random_shell_graph(constructor, seed=None):
             v = seed.choice(nlist2)
             if u == v or G.has_edge(u, v):
                 continue
-            else:
-                G.add_edge(u, v)
-                edge_count = edge_count + 1
+            G.add_edge(u, v)
+            edge_count += 1
     return G
 
 
@@ -1166,8 +1147,7 @@ def random_powerlaw_tree(n, gamma=3, seed=None, tries=100):
     """
     # This call may raise a NetworkXError if the number of tries is succeeded.
     seq = random_powerlaw_tree_sequence(n, gamma=gamma, seed=seed, tries=tries)
-    G = degree_sequence_tree(seq)
-    return G
+    return degree_sequence_tree(seq)
 
 
 @py_random_state(2)

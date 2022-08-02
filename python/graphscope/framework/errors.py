@@ -135,7 +135,7 @@ class FatalError(GSError):
 
 class GRPCError(GSError):
     def __init__(self, message):
-        message = "RPC failed: %s" % message
+        message = f"RPC failed: {message}"
         super().__init__(message)
 
 
@@ -166,4 +166,4 @@ def check_argument(condition, message=None):
     if not condition:
         if message is None:
             message = "in '%s'" % inspect.stack()[1].code_context[0]
-        raise InvalidArgumentError("Check failed: %s" % message)
+        raise InvalidArgumentError(f"Check failed: {message}")

@@ -62,7 +62,7 @@ def cmake_graph(graph_class):
         )
         with open(cmakelists_file, mode="w") as f:
             f.write(content)
-    cmake_commands = ["cmake", ".", "-DNETWORKX=" + NETWORKX]
+    cmake_commands = ["cmake", ".", f"-DNETWORKX={NETWORKX}"]
     if "ArrowFragment" in graph_class:
         cmake_commands.append("-DPROPERTY_GRAPH_FRAME=True")
     else:
@@ -79,7 +79,7 @@ def cmake_app(app):
     elif "ArrowProjectedFragment" in graph_class:
         graph_header = "core/fragment/arrow_projected_fragment.h"
     else:
-        raise ValueError("Not supported graph class %s" % graph_class)
+        raise ValueError(f"Not supported graph class {graph_class}")
 
     app_type, app_header, app_class = get_app_info(algo)
     assert app_type == "cpp_pie", "Only support cpp_pie currently."
@@ -101,7 +101,7 @@ def cmake_app(app):
         )
         with open(cmakelists_file, mode="w") as f:
             f.write(content)
-    cmake_commands = ["cmake", ".", "-DNETWORKX=" + NETWORKX]
+    cmake_commands = ["cmake", ".", f"-DNETWORKX={NETWORKX}"]
 
     cmake_and_make(cmake_commands)
     print("Finished compiling", app_class, graph_class)
@@ -119,7 +119,7 @@ def get_app_info(algo: str):
             if app_type == "cpp_pie":
                 return app_type, app["src"], f"{app['class_name']}<_GRAPH_TYPE>"
 
-    raise KeyError("Algorithm %s does not exist in the gar resource." % algo)
+    raise KeyError(f"Algorithm {algo} does not exist in the gar resource.")
 
 
 def compile_graph():
@@ -140,11 +140,10 @@ def compile_graph():
     for oid in oid_types:
         for vid in vid_types:
             for vdata in vdata_types:
-                for edata in edata_types:
-                    graph_class = projected_frame_template.format(
-                        oid, vid, vdata, edata
-                    )
-                    graph_classes.append(graph_class)
+                graph_classes.extend(
+                    projected_frame_template.format(oid, vid, vdata, edata)
+                    for edata in edata_types
+                )
 
     with multiprocessing.Pool() as pool:
         pool.map(cmake_graph, graph_classes)

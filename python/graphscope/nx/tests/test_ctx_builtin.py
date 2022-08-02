@@ -94,54 +94,56 @@ class TestBuiltInApp:
         )
         cls.p2p_length_ans = dict(
             pd.read_csv(
-                "{}/p2p-31-sssp".format(data_dir), sep=" ", header=None, prefix=""
+                f"{data_dir}/p2p-31-sssp", sep=" ", header=None, prefix=""
             ).values
         )
+
         cls.p2p_dc_ans = dict(
             pd.read_csv(
-                "{}/p2p-31-degree_centrality".format(data_dir),
+                f"{data_dir}/p2p-31-degree_centrality",
                 sep="\t",
                 header=None,
                 prefix="",
             ).values
         )
+
         cls.p2p_ev_ans = dict(
             pd.read_csv(
-                "{}/p2p-31-eigenvector".format(data_dir),
-                sep="\t",
-                header=None,
-                prefix="",
+                f"{data_dir}/p2p-31-eigenvector", sep="\t", header=None, prefix=""
             ).values
         )
+
         cls.p2p_kz_ans = dict(
             pd.read_csv(
-                "{}/p2p-31-katz".format(data_dir), sep="\t", header=None, prefix=""
+                f"{data_dir}/p2p-31-katz", sep="\t", header=None, prefix=""
             ).values
         )
+
         cls.p2p_hits_ans = pd.read_csv(
-            "{}/p2p-31-hits-directed".format(data_dir), sep="\t", header=None, prefix=""
+            f"{data_dir}/p2p-31-hits-directed", sep="\t", header=None, prefix=""
         )
+
         cls.p2p_pagerank_ans = dict(
             pd.read_csv(
-                "{}/p2p-31-pagerank_nx".format(data_dir),
-                sep="\t",
-                header=None,
-                prefix="",
+                f"{data_dir}/p2p-31-pagerank_nx", sep="\t", header=None, prefix=""
             ).values
         )
+
         cls.p2p_clus_ans = dict(
             pd.read_csv(
-                "{}/p2p-31-clustering".format(data_dir), sep=" ", header=None, prefix=""
+                f"{data_dir}/p2p-31-clustering", sep=" ", header=None, prefix=""
             ).values
         )
+
         cls.p2p_triangles_ans = dict(
             pd.read_csv(
-                "{}/p2p-31-triangles".format(data_dir), sep=" ", header=None, prefix=""
+                f"{data_dir}/p2p-31-triangles", sep=" ", header=None, prefix=""
             ).values
         )
+
         cls.p2p_kcore_ans = sorted(
             pd.read_csv(
-                "{}/p2p-31-kcore".format(data_dir), sep=" ", header=None, prefix=""
+                f"{data_dir}/p2p-31-kcore", sep=" ", header=None, prefix=""
             ).values
         )
 

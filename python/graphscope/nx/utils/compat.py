@@ -80,9 +80,8 @@ def replace_context(global_ctx, source_module, target_module):
     Replacing :code:`source_module` with :code:`target_module` in the given :code:`global_ctx`.
     """
     for k, v in global_ctx.items():
-        if isinstance(v, ModuleType):
-            if v.__name__ == source_module.__name__:
-                global_ctx[k] = target_module
+        if isinstance(v, ModuleType) and v.__name__ == source_module.__name__:
+            global_ctx[k] = target_module
     return global_ctx
 
 
@@ -146,19 +145,18 @@ def replace_module_context(  # noqa: C901
         # reload a copy of the module, to rewrite
         module = load_the_module(module_or_value)
 
-        members_skip_patch = set(
-            {
-                "__all__",
-                "__builtins__",
-                "__cached__",
-                "__doc__",
-                "__file__",
-                "__loader__",
-                "__name__",
-                "__package__",
-                "__spec__",
-            }
-        )
+        members_skip_patch = {
+            "__all__",
+            "__builtins__",
+            "__cached__",
+            "__doc__",
+            "__file__",
+            "__loader__",
+            "__name__",
+            "__package__",
+            "__spec__",
+        }
+
         # find a common __globals__, since they are in the same module
         global_ctx = dict(inspect.getmembers(module))
 
@@ -194,10 +192,7 @@ def replace_module_context(  # noqa: C901
                 continue
 
             if isinstance(var, ModuleType):
-                if var.__name__ == source_module.__name__:
-                    target_value = target_module
-                else:
-                    target_value = var
+                target_value = target_module if var.__name__ == source_module.__name__ else var
                 setattr(module, var_name, target_value)
                 if expand:
                     setattr(mod, var_name, getattr(module, var_name))

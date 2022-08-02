@@ -39,10 +39,9 @@ def create_app(app_assets):
     config = {types_pb2.APP_ALGO: utils.s_to_attr(app_assets.algo)}
     if app_assets.gar is not None:
         config[types_pb2.GAR] = utils.bytes_to_attr(app_assets.gar)
-    op = Operation(
+    return Operation(
         None, types_pb2.CREATE_APP, config=config, output_types=types_pb2.APP
     )
-    return op
 
 
 def bind_app(graph, app_assets):
@@ -81,9 +80,8 @@ def run_app(app, *args, **kwargs):
         An op to run app on the specified graph, with optional query parameters.
     """
     inputs = [app.op]
-    config = {}
     output_prefix = kwargs.pop("output_prefix", ".")
-    config[types_pb2.OUTPUT_PREFIX] = utils.s_to_attr(output_prefix)
+    config = {types_pb2.OUTPUT_PREFIX: utils.s_to_attr(output_prefix)}
     # optional query arguments.
     params = utils.pack_query_params(*args, **kwargs)
     query_args = query_args_pb2.QueryArgs()
@@ -115,8 +113,7 @@ def create_graph(session_id, graph_type, inputs=None, **kwargs):
     }
 
     if graph_type == graph_def_pb2.ARROW_PROPERTY:
-        attrs = kwargs.pop("attrs", None)
-        if attrs:
+        if attrs := kwargs.pop("attrs", None):
             for k, v in attrs.items():
                 if isinstance(v, attr_value_pb2.AttrValue):
                     config[k] = v
@@ -126,16 +123,15 @@ def create_graph(session_id, graph_type, inputs=None, **kwargs):
         config[types_pb2.DIRECTED] = utils.b_to_attr(kwargs["directed"])
         config[types_pb2.DISTRIBUTED] = utils.b_to_attr(kwargs["distributed"])
     else:
-        raise RuntimeError("Not supported graph type {}".format(graph_type))
+        raise RuntimeError(f"Not supported graph type {graph_type}")
 
-    op = Operation(
+    return Operation(
         session_id,
         types_pb2.CREATE_GRAPH,
         inputs=inputs,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def create_loader(vertex_or_edge_label_list):
@@ -151,15 +147,13 @@ def create_loader(vertex_or_edge_label_list):
         vertex_or_edge_label_list = [vertex_or_edge_label_list]
     attr = attr_value_pb2.AttrValue()
     attr.list.func.extend([label.attr() for label in vertex_or_edge_label_list])
-    config = {}
-    config[types_pb2.ARROW_PROPERTY_DEFINITION] = attr
-    op = Operation(
+    config = {types_pb2.ARROW_PROPERTY_DEFINITION: attr}
+    return Operation(
         vertex_or_edge_label_list[0]._session_id,
         types_pb2.DATA_SOURCE,
         config=config,
         output_types=types_pb2.NULL_OUTPUT,
     )
-    return op
 
 
 def add_labels_to_graph(graph, loader_op):
@@ -196,7 +190,7 @@ def add_labels_to_graph(graph, loader_op):
         types_pb2.IS_FROM_VINEYARD_ID: utils.b_to_attr(False),
     }
     # inferred from the context of the dag.
-    config.update({types_pb2.GRAPH_NAME: utils.place_holder_to_attr()})
+    config[types_pb2.GRAPH_NAME] = utils.place_holder_to_attr()
     if graph._graph_type != graph_def_pb2.ARROW_PROPERTY:
         raise NotImplementedError(
             f"Add vertices or edges is not supported yet on graph type {graph._graph_type}"
@@ -226,16 +220,15 @@ def dynamic_to_arrow(graph):
             oid_type = type(node)
         elif oid_type != type(node):
             raise RuntimeError(
-                "The vertex type is not consistent {} vs {}, can not convert it to arrow graph".format(
-                    str(oid_type), str(type(node))
-                )
+                f"The vertex type is not consistent {str(oid_type)} vs {str(type(node))}, can not convert it to arrow graph"
             )
+
     if oid_type == int or oid_type is None:
         oid_type = utils.data_type_to_cpp(graph_def_pb2.LONG)
     elif oid_type == str:
         oid_type = utils.data_type_to_cpp(graph_def_pb2.STRING)
     else:
-        raise RuntimeError("Unsupported oid type: " + str(oid_type))
+        raise RuntimeError(f"Unsupported oid type: {str(oid_type)}")
     vid_type = utils.data_type_to_cpp(graph_def_pb2.ULONG)
     config = {
         types_pb2.GRAPH_NAME: utils.s_to_attr(graph.key),
@@ -247,13 +240,12 @@ def dynamic_to_arrow(graph):
         types_pb2.VID_TYPE: utils.s_to_attr(vid_type),
     }
 
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.TRANSFORM_GRAPH,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def arrow_to_dynamic(graph):
@@ -280,13 +272,12 @@ def arrow_to_dynamic(graph):
         ),
         types_pb2.DEFAULT_LABEL_ID: utils.i_to_attr(graph._default_label_id),
     }
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.TRANSFORM_GRAPH,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def modify_edges(graph, modify_type, edges):
@@ -301,17 +292,15 @@ def modify_edges(graph, modify_type, edges):
         An op to modify edges on the graph.
     """
     check_argument(graph.graph_type == graph_def_pb2.DYNAMIC_PROPERTY)
-    config = {}
-    config[types_pb2.GRAPH_NAME] = utils.s_to_attr(graph.key)
+    config = {types_pb2.GRAPH_NAME: utils.s_to_attr(graph.key)}
     config[types_pb2.MODIFY_TYPE] = utils.modify_type_to_attr(modify_type)
     config[types_pb2.EDGES] = utils.list_str_to_attr(edges)
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.MODIFY_EDGES,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def modify_vertices(graph, modify_type, vertices):
@@ -326,17 +315,15 @@ def modify_vertices(graph, modify_type, vertices):
         An op to modify vertices on the graph.
     """
     check_argument(graph.graph_type == graph_def_pb2.DYNAMIC_PROPERTY)
-    config = {}
-    config[types_pb2.GRAPH_NAME] = utils.s_to_attr(graph.key)
+    config = {types_pb2.GRAPH_NAME: utils.s_to_attr(graph.key)}
     config[types_pb2.MODIFY_TYPE] = utils.modify_type_to_attr(modify_type)
     config[types_pb2.NODES] = utils.list_str_to_attr(vertices)
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.MODIFY_VERTICES,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def report_graph(
@@ -404,26 +391,23 @@ def report_graph(
         config[types_pb2.V_LABEL_ID] = utils.i_to_attr(label_id)
 
     config[types_pb2.EDGE_KEY] = utils.s_to_attr(str(key) if key is not None else "")
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.REPORT_GRAPH,
         config=config,
         output_types=types_pb2.RESULTS,
     )
-    return op
 
 
 def project_arrow_property_graph(graph, vertex_collections, edge_collections):
     check_argument(graph.graph_type == graph_def_pb2.ARROW_PROPERTY)
     config = {
         types_pb2.GRAPH_TYPE: utils.graph_type_to_attr(graph.graph_type),
+    } | {
+        types_pb2.VERTEX_COLLECTIONS: utils.s_to_attr(vertex_collections),
+        types_pb2.EDGE_COLLECTIONS: utils.s_to_attr(edge_collections),
     }
-    config.update(
-        {
-            types_pb2.VERTEX_COLLECTIONS: utils.s_to_attr(vertex_collections),
-            types_pb2.EDGE_COLLECTIONS: utils.s_to_attr(edge_collections),
-        }
-    )
+
     op = Operation(
         graph.session_id,
         types_pb2.PROJECT_GRAPH,
@@ -493,13 +477,12 @@ def project_dynamic_property_graph(graph, v_prop, e_prop, v_prop_type, e_prop_ty
         types_pb2.E_DATA_TYPE: utils.s_to_attr(utils.data_type_to_cpp(e_prop_type)),
     }
 
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.PROJECT_TO_SIMPLE,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def copy_graph(graph, copy_type="identical"):
@@ -523,13 +506,12 @@ def copy_graph(graph, copy_type="identical"):
         types_pb2.COPY_TYPE: utils.s_to_attr(copy_type),
     }
 
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.COPY_GRAPH,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def to_directed(graph):
@@ -546,13 +528,12 @@ def to_directed(graph):
         types_pb2.GRAPH_NAME: utils.s_to_attr(graph.key),
     }
 
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.TO_DIRECTED,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def to_undirected(graph):
@@ -569,13 +550,12 @@ def to_undirected(graph):
         types_pb2.GRAPH_NAME: utils.s_to_attr(graph.key),
     }
 
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.TO_UNDIRECTED,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def create_graph_view(graph, view_type):
@@ -595,13 +575,12 @@ def create_graph_view(graph, view_type):
         types_pb2.VIEW_TYPE: utils.s_to_attr(view_type),
     }
 
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.VIEW_GRAPH,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def clear_graph(graph):
@@ -617,13 +596,12 @@ def clear_graph(graph):
     config = {
         types_pb2.GRAPH_NAME: utils.s_to_attr(graph.key),
     }
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.CLEAR_GRAPH,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def clear_edges(graph):
@@ -639,13 +617,12 @@ def clear_edges(graph):
     config = {
         types_pb2.GRAPH_NAME: utils.s_to_attr(graph.key),
     }
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.CLEAR_EDGES,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def create_subgraph(graph, nodes=None, edges=None):
@@ -668,24 +645,22 @@ def create_subgraph(graph, nodes=None, edges=None):
     if edges is not None:
         config[types_pb2.EDGES] = utils.list_str_to_attr(edges)
 
-    op = Operation(
+    return Operation(
         graph.session_id,
         types_pb2.INDUCE_SUBGRAPH,
         config=config,
         output_types=types_pb2.GRAPH,
     )
-    return op
 
 
 def create_unload_op(session_id, op_type, inputs):
     """Uility method to create a unload `Operation` based on op type and op."""
-    op = Operation(
+    return Operation(
         session_id,
         op_type,
         inputs=inputs,
         output_types=types_pb2.NULL_OUTPUT,
     )
-    return op
 
 
 def unload_app(app):
@@ -853,13 +828,12 @@ def get_context_data(results, node):
         types_pb2.CONTEXT_KEY: utils.s_to_attr(results.key),
         types_pb2.NODE: utils.s_to_attr(node),
     }
-    op = Operation(
+    return Operation(
         results._session_id,
         types_pb2.GET_CONTEXT_DATA,
         config=config,
         output_types=types_pb2.RESULTS,
     )
-    return op
 
 
 def add_column(graph, results, selector):
@@ -979,9 +953,7 @@ def create_learning_instance(graph, nodes=None, edges=None, gen_labels=None):
     Returns:
         An op to create a learning engine based on a graph.
     """
-    config = {}
-    # pickle None is expected
-    config[types_pb2.NODES] = utils.bytes_to_attr(pickle.dumps(nodes))
+    config = {types_pb2.NODES: utils.bytes_to_attr(pickle.dumps(nodes))}
     config[types_pb2.EDGES] = utils.bytes_to_attr(pickle.dumps(edges))
     config[types_pb2.GLE_GEN_LABELS] = utils.bytes_to_attr(pickle.dumps(gen_labels))
     op = Operation(
@@ -1050,8 +1022,7 @@ def gremlin_query(interactive_query, query, request_options=None, query_gaia=Fal
     Returns:
         An op to execute a gremlin query on the GIE instance.
     """
-    config = {}
-    config[types_pb2.GIE_GREMLIN_QUERY_MESSAGE] = utils.s_to_attr(query)
+    config = {types_pb2.GIE_GREMLIN_QUERY_MESSAGE: utils.s_to_attr(query)}
     if request_options:
         config[types_pb2.GIE_GREMLIN_REQUEST_OPTIONS] = utils.s_to_attr(
             json.dumps(request_options)
@@ -1087,8 +1058,7 @@ def gremlin_to_subgraph(
     Returns:
         An op to create the subgraph from gremlin script
     """
-    config = {}
-    config[types_pb2.GIE_GREMLIN_QUERY_MESSAGE] = utils.s_to_attr(gremlin_script)
+    config = {types_pb2.GIE_GREMLIN_QUERY_MESSAGE: utils.s_to_attr(gremlin_script)}
     config[types_pb2.OID_TYPE] = utils.s_to_attr(oid_type)
     if request_options:
         config[types_pb2.GIE_GREMLIN_REQUEST_OPTIONS] = utils.s_to_attr(
@@ -1115,8 +1085,7 @@ def fetch_gremlin_result(result_set, fetch_type="one"):
     Returns:
         An op to fetch the gremlin result.
     """
-    config = {}
-    config[types_pb2.GIE_GREMLIN_FETCH_RESULT_TYPE] = utils.s_to_attr(fetch_type)
+    config = {types_pb2.GIE_GREMLIN_FETCH_RESULT_TYPE: utils.s_to_attr(fetch_type)}
     op = Operation(
         result_set.session_id,
         types_pb2.FETCH_GREMLIN_RESULT,

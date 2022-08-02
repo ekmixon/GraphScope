@@ -32,9 +32,12 @@ from graphscope.nx.algorithms import builtin
 from graphscope.nx.utils.compat import import_as_graphscope_nx
 from graphscope.nx.utils.compat import internal_name
 
-existing_names = set(
-    k for k, _ in inspect.getmembers(sys.modules[__name__]) if not internal_name(k)
-)
+existing_names = {
+    k
+    for k, _ in inspect.getmembers(sys.modules[__name__])
+    if not internal_name(k)
+}
+
 mod = sys.modules[__name__]
 
 __all__ = list(existing_names)
@@ -42,7 +45,10 @@ __all__ = list(existing_names)
 for name, func in inspect.getmembers(
     import_as_graphscope_nx(networkx.algorithms, expand=True)
 ):
-    if callable(func) or inspect.isclass(func):
-        if not internal_name(name) and name not in existing_names:
-            __all__.append(name)
-            setattr(mod, name, func)
+    if (
+        (callable(func) or inspect.isclass(func))
+        and not internal_name(name)
+        and name not in existing_names
+    ):
+        __all__.append(name)
+        setattr(mod, name, func)

@@ -74,10 +74,7 @@ class VertexLabel(object):
     ):
         self.label = label
         # loader to take various data source
-        if isinstance(loader, Loader):
-            self.loader = loader
-        else:
-            self.loader = Loader(loader)
+        self.loader = loader if isinstance(loader, Loader) else Loader(loader)
         # raw properties passed by user parameters
         self.raw_properties = properties
         # finally properties for constructing graph
@@ -97,7 +94,7 @@ class VertexLabel(object):
             self.add_properties(self.loader.deduced_properties)
         # set selected columns to loader
         self.loader.select_columns(
-            self.properties, include_all=bool(self.raw_properties is None)
+            self.properties, include_all=self.raw_properties is None
         )
 
     def __str__(self) -> str:
@@ -155,10 +152,7 @@ class EdgeSubLabel(object):
         load_strategy="both_out_in",
         id_type: str = "int64_t",
     ):
-        if isinstance(loader, Loader):
-            self.loader = loader
-        else:
-            self.loader = Loader(loader)
+        self.loader = loader if isinstance(loader, Loader) else Loader(loader)
         # raw properties passed by user parameters
         self.raw_properties = properties
         # finally properties for constructing graph
@@ -193,7 +187,7 @@ class EdgeSubLabel(object):
             self.add_properties(self.loader.deduced_properties)
         # set selected columns to loader
         self.loader.select_columns(
-            self.properties, include_all=bool(self.raw_properties is None)
+            self.properties, include_all=self.raw_properties is None
         )
 
     def __str__(self) -> str:
@@ -220,7 +214,7 @@ class EdgeSubLabel(object):
 
     def get_attr(self):
         attr_list = attr_value_pb2.NameAttrList()
-        attr_list.name = "{}_{}".format(self.src_label, self.dst_label)
+        attr_list.name = f"{self.src_label}_{self.dst_label}"
         attr_list.attr[types_pb2.SRC_LABEL].CopyFrom(utils.s_to_attr(self.src_label))
         attr_list.attr[types_pb2.DST_LABEL].CopyFrom(utils.s_to_attr(self.dst_label))
         attr_list.attr[types_pb2.LOAD_STRATEGY].CopyFrom(
@@ -298,19 +292,19 @@ def _convert_array_to_deprecated_form(items):
             if isinstance(items[i], (int, str)) and isinstance(
                 items[i + 1], (int, str)
             ):
-                compat_items.append("_")
-                compat_items.append("_")
-                compat_items.append(items[i])
-                compat_items.append(items[i + 1])
+                compat_items.extend(("_", "_", items[i], items[i + 1]))
             else:
                 assert len(items[i]) == 2 and len(items[i + 1]) == 2
-                compat_items.append(items[i][1])
-                compat_items.append(items[i + 1][1])
-                compat_items.append(items[i][0])
-                compat_items.append(items[i + 1][0])
-        elif i == 3:
-            pass
-        else:
+                compat_items.extend(
+                    (
+                        items[i][1],
+                        items[i + 1][1],
+                        items[i][0],
+                        items[i + 1][0],
+                    )
+                )
+
+        elif i != 3:
             compat_items.append(items[i])
     return compat_items
 
@@ -356,17 +350,16 @@ def normalize_parameter_edges(
         if isinstance(items, (Loader, str, pd.DataFrame, *VineyardObjectTypes)):
             return EdgeSubLabel(items, None, "_", "_", 0, 1, id_type=id_type)
         elif isinstance(items, Sequence):
-            if all([isinstance(item, np.ndarray) for item in items]):
+            if all(isinstance(item, np.ndarray) for item in items):
                 return EdgeSubLabel(items, None, "_", "_", 0, 1, id_type=id_type)
-            else:
-                check_argument(len(items) < 6, "Too many arguments for a edge label")
-                compat_items = _convert_array_to_deprecated_form(items)
-                return EdgeSubLabel(*compat_items, id_type=id_type)
+            check_argument(len(items) < 6, "Too many arguments for a edge label")
+            compat_items = _convert_array_to_deprecated_form(items)
+            return EdgeSubLabel(*compat_items, id_type=id_type)
         elif isinstance(items, Mapping):
             items = _convert_dict_to_compat_form(items)
             return EdgeSubLabel(**items, id_type=id_type)
         else:
-            raise SyntaxError("Wrong format of e sub label: " + str(items))
+            raise SyntaxError(f"Wrong format of e sub label: {str(items)}")
 
     def process_label(label, items):
         e_label = EdgeLabel(label, id_type)
@@ -383,7 +376,7 @@ def normalize_parameter_edges(
         elif isinstance(items, Mapping):
             e_label.add_sub_label(process_sub_label(items))
         else:
-            raise SyntaxError("Wrong format of e label: " + str(items))
+            raise SyntaxError(f"Wrong format of e label: {str(items)}")
         return e_label
 
     e_labels = []
@@ -419,18 +412,17 @@ def normalize_parameter_vertices(
         if isinstance(items, (Loader, str, pd.DataFrame, *VineyardObjectTypes)):
             return VertexLabel(label=label, id_type=id_type, loader=items)
         elif isinstance(items, Sequence):
-            if all([isinstance(item, np.ndarray) for item in items]):
+            if all(isinstance(item, np.ndarray) for item in items):
                 return VertexLabel(label=label, id_type=id_type, loader=items)
-            else:
-                check_argument(len(items) < 4, "Too many arguments for a vertex label")
-                return VertexLabel(label, *items, id_type=id_type)
+            check_argument(len(items) < 4, "Too many arguments for a vertex label")
+            return VertexLabel(label, *items, id_type=id_type)
         elif isinstance(items, Mapping):
             if "vid" in items:
                 items["vid_field"] = items["vid"]
                 items.pop("vid")
             return VertexLabel(label, id_type=id_type, **items)
         else:
-            raise RuntimeError("Wrong format of v label: " + str(items))
+            raise RuntimeError(f"Wrong format of v label: {str(items)}")
 
     v_labels = []
     if vertices is None:

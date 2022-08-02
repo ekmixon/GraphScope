@@ -91,7 +91,7 @@ class GraphInterface(metaclass=ABCMeta):
     def save_to(self, path, **kwargs):
         raise NotImplementedError
 
-    def load_from(cls, path, sess, **kwargs):
+    def load_from(self, path, sess, **kwargs):
         raise NotImplementedError
 
     @abstractmethod
@@ -145,8 +145,7 @@ class GraphInterface(metaclass=ABCMeta):
 
     def _construct_op_from_vineyard_id(self, vineyard_id):
         assert self._session is not None
-        config = {}
-        config[types_pb2.IS_FROM_VINEYARD_ID] = utils.b_to_attr(True)
+        config = {types_pb2.IS_FROM_VINEYARD_ID: utils.b_to_attr(True)}
         config[types_pb2.VINEYARD_ID] = utils.i_to_attr(int(vineyard_id))
         # FIXME(hetao) hardcode oid/vid type for codegen, when loading from vineyard
         #
@@ -159,8 +158,7 @@ class GraphInterface(metaclass=ABCMeta):
 
     def _construct_op_from_vineyard_name(self, vineyard_name):
         assert self._session is not None
-        config = {}
-        config[types_pb2.IS_FROM_VINEYARD_ID] = utils.b_to_attr(True)
+        config = {types_pb2.IS_FROM_VINEYARD_ID: utils.b_to_attr(True)}
         config[types_pb2.VINEYARD_NAME] = utils.s_to_attr(str(vineyard_name))
         # FIXME(hetao) hardcode oid/vid type for codegen, when loading from vineyard
         #
@@ -172,8 +170,7 @@ class GraphInterface(metaclass=ABCMeta):
         )
 
     def _construct_op_of_empty_graph(self):
-        config = {}
-        config[types_pb2.ARROW_PROPERTY_DEFINITION] = attr_value_pb2.AttrValue()
+        config = {types_pb2.ARROW_PROPERTY_DEFINITION: attr_value_pb2.AttrValue()}
         config[types_pb2.DIRECTED] = utils.b_to_attr(self._directed)
         config[types_pb2.GENERATE_EID] = utils.b_to_attr(self._generate_eid)
         config[types_pb2.OID_TYPE] = utils.s_to_attr(self._oid_type)
@@ -246,11 +243,11 @@ class GraphDAGNode(DAGNode, GraphInterface):
         self._generate_eid = generate_eid
         self._graph_type = graph_def_pb2.ARROW_PROPERTY
         # list of pair <parent_op_key, VertexLabel/EdgeLabel>
-        self._unsealed_vertices_and_edges = list()
+        self._unsealed_vertices_and_edges = []
         # check for newly added vertices and edges.
-        self._v_labels = list()
-        self._e_labels = list()
-        self._e_relationships = list()
+        self._v_labels = []
+        self._e_labels = []
+        self._e_relationships = []
         self._base_graph = None
         # add op to dag
         self._resolve_op(incoming_data)
@@ -472,12 +469,11 @@ class GraphDAGNode(DAGNode, GraphInterface):
             src_field != dst_field, "src and dst field cannot refer to the same field"
         )
 
-        if self.evaluated:
-            if label in self._e_labels:
-                raise ValueError(f"Label {label} already existed in graph")
+        if self.evaluated and label in self._e_labels:
+            raise ValueError(f"Label {label} already existed in graph")
 
-        unsealed_vertices = list()
-        unsealed_edges = list()
+        unsealed_vertices = []
+        unsealed_edges = []
 
         v_labels = deepcopy(self._v_labels)
         e_labels = deepcopy(self._e_labels)
@@ -495,7 +491,7 @@ class GraphDAGNode(DAGNode, GraphInterface):
         if label in self.e_labels:
             # aggregate op with the same edge label
             fork = False
-            unsealed_vertices_and_edges = list()
+            unsealed_vertices_and_edges = []
             for parent_op_key, unsealed_v_or_e in self._unsealed_vertices_and_edges:
                 if (
                     isinstance(unsealed_v_or_e, EdgeLabel)
@@ -522,8 +518,6 @@ class GraphDAGNode(DAGNode, GraphInterface):
                             unsealed_vertices.append(unsealed_v_or_e)
                         else:
                             unsealed_edges.append(unsealed_v_or_e)
-            unsealed_edges.append(cur_label)
-            unsealed_vertices_and_edges.append((parent.op.key, cur_label))
         else:
             unsealed_vertices_and_edges = deepcopy(self._unsealed_vertices_and_edges)
             e_labels.append(label)
@@ -540,8 +534,8 @@ class GraphDAGNode(DAGNode, GraphInterface):
                     id_type=self._oid_type,
                 )
             )
-            unsealed_edges.append(cur_label)
-            unsealed_vertices_and_edges.append((parent.op.key, cur_label))
+        unsealed_edges.append(cur_label)
+        unsealed_vertices_and_edges.append((parent.op.key, cur_label))
         # generate and add a loader op to dag
         loader_op = dag_utils.create_loader(unsealed_vertices + unsealed_edges)
         self._session.dag.add_op(loader_op)
@@ -706,10 +700,9 @@ class Graph(GraphInterface):
     def update_from_graph_def(self, graph_def):
         check_argument(
             self._graph_node.graph_type == graph_def.graph_type,
-            "Graph type doesn't match {} versus {}".format(
-                self._graph_node.graph_type, graph_def.graph_type
-            ),
+            f"Graph type doesn't match {self._graph_node.graph_type} versus {graph_def.graph_type}",
         )
+
         self._key = graph_def.key
         self._directed = graph_def.directed
         vy_info = graph_def_pb2.VineyardInfoPb()
@@ -764,7 +757,7 @@ class Graph(GraphInterface):
     @property
     def signature(self):
         return hashlib.sha256(
-            "{}.{}".format(self._schema.signature(), self._key).encode("utf-8")
+            f"{self._schema.signature()}.{self._key}".encode("utf-8")
         ).hexdigest()
 
     @property
@@ -847,24 +840,24 @@ class Graph(GraphInterface):
             if (
                 self._interactive_instance_launching_thread is not None
                 and self._interactive_instance_launching_thread.is_alive()
+            ) and (
+                threading.current_thread()
+                != self._interactive_instance_launching_thread
             ):
-                # join raises a RuntimeError if an attempt is made to join the current thread.
-                # this exception occurs when a object collected by gc mechanism contains a running thread.
-                if (
-                    threading.current_thread()
-                    != self._interactive_instance_launching_thread
-                ):
-                    self._interactive_instance_launching_thread.join()
+                self._interactive_instance_launching_thread.join()
             self._close_interactive_instances()
         except Exception as e:
-            logger.error("Failed to close interactive instances: %s" % e)
+            logger.error(f"Failed to close interactive instances: {e}")
         try:
             self._close_learning_instances()
         except Exception as e:
-            logger.error("Failed to close learning instances: %s" % e)
-        rlt = None
-        if not self._detached:
-            rlt = self._session._wrapper(self._graph_node.unload())
+            logger.error(f"Failed to close learning instances: {e}")
+        rlt = (
+            None
+            if self._detached
+            else self._session._wrapper(self._graph_node.unload())
+        )
+
         self._key = None
         self._session = None
         return rlt
@@ -958,9 +951,10 @@ class Graph(GraphInterface):
         vineyard_ipc_socket = conf["vineyard_socket"]
         if sess.info["type"] == "k8s":
             hosts = [
-                "{}:{}".format(sess.info["namespace"], s)
+                f'{sess.info["namespace"]}:{s}'
                 for s in sess.info["engine_hosts"].split(",")
             ]
+
         else:  # type == "hosts"
             hosts = sess.info["engine_hosts"].split(",")
         vineyard.io.serialize(
@@ -1010,9 +1004,10 @@ class Graph(GraphInterface):
         vineyard_ipc_socket = conf["vineyard_socket"]
         if sess.info["type"] == "k8s":
             hosts = [
-                "{}:{}".format(sess.info["namespace"], s)
+                f'{sess.info["namespace"]}:{s}'
                 for s in sess.info["engine_hosts"].split(",")
             ]
+
         else:  # type == "hosts"
             hosts = sess.info["engine_hosts"].split(",")
         graph_id = vineyard.io.deserialize(

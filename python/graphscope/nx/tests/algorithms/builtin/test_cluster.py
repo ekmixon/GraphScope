@@ -48,7 +48,7 @@ class TestRun:
 class TestTriangles:
     def test_empty(self):
         G = nx.Graph()
-        assert list(nx.triangles(G).values()) == []
+        assert not list(nx.triangles(G).values())
 
     def test_path(self):
         G = nx.path_graph(10)
@@ -77,7 +77,7 @@ class TestTriangles:
     def test_k5(self):
         G = nx.complete_graph(5)
         assert list(nx.triangles(G).values()) == [6, 6, 6, 6, 6]
-        assert sum(nx.triangles(G).values()) / 3.0 == 10
+        assert sum(nx.triangles(G).values()) == 30
         assert nx.triangles(G, 1) == 6
         G.remove_edge(1, 2)
         assert list(nx.triangles(G).values()) == [5, 3, 3, 5, 5]
@@ -89,7 +89,7 @@ class TestTriangles:
 class TestDirectedClustering:
     def test_clustering(self):
         G = nx.DiGraph()
-        assert list(nx.clustering(G).values()) == []
+        assert not list(nx.clustering(G).values())
         assert nx.clustering(G) == {}
 
     def test_path(self):
@@ -153,7 +153,7 @@ class TestDirectedClustering:
 class TestDirectedWeightedClustering:
     def test_clustering(self):
         G = nx.DiGraph()
-        assert list(nx.clustering(G, weight="weight").values()) == []
+        assert not list(nx.clustering(G, weight="weight").values())
         assert nx.clustering(G) == {}
 
     def test_path(self):
@@ -221,7 +221,7 @@ class TestDirectedWeightedClustering:
 class TestWeightedClustering:
     def test_clustering(self):
         G = nx.Graph()
-        assert list(nx.clustering(G, weight="weight").values()) == []
+        assert not list(nx.clustering(G, weight="weight").values())
         assert nx.clustering(G) == {}
 
     def test_path(self):
@@ -297,7 +297,7 @@ class TestWeightedClustering:
 class TestClustering:
     def test_clustering(self):
         G = nx.Graph()
-        assert list(nx.clustering(G).values()) == []
+        assert not list(nx.clustering(G).values())
         assert nx.clustering(G) == {}
 
     def test_path(self):
@@ -377,7 +377,7 @@ class TestTransitivity:
 class TestSquareClustering:
     def test_clustering(self):
         G = nx.Graph()
-        assert list(nx.square_clustering(G).values()) == []
+        assert not list(nx.square_clustering(G).values())
         assert nx.square_clustering(G) == {}
 
     def test_path(self):

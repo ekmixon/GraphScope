@@ -89,9 +89,8 @@ class Graph(GLGraph):
         handle = self.decode_arg(handle)
         config = self.decode_arg(config)
 
-        if config is None:
-            if "config" in handle:
-                config = handle["config"]
+        if config is None and "config" in handle:
+            config = handle["config"]
         if config is None:
             config = collections.defaultdict(lambda: dict)
 
@@ -159,19 +158,17 @@ class Graph(GLGraph):
             for node in nodes:
                 if isinstance(node, str):
                     if node in node_names:
-                        raise InvalidArgumentError("Duplicate node type: %s" % node)
+                        raise InvalidArgumentError(f"Duplicate node type: {node}")
                     node_names.append(node)
                 elif isinstance(node, tuple):
                     if node[0] in node_names:
-                        raise InvalidArgumentError("Duplicate node type: %s" % node[0])
+                        raise InvalidArgumentError(f"Duplicate node type: {node[0]}")
                     node_names.append(node[0])
                     attr_types = handle["node_attribute_types"][node[0]]
                     attr_schema = selected_property_schema(attr_types, node[1])
                     node_attributes[node[0]] = (node[1], attr_schema)
                 else:
-                    raise InvalidArgumentError(
-                        "The node parameter is in bad format: %s" % node
-                    )
+                    raise InvalidArgumentError(f"The node parameter is in bad format: {node}")
         else:
             for node in handle["node_schema"]:
                 node_names.append(node.split(":")[0])
@@ -213,26 +210,20 @@ class Graph(GLGraph):
                     attr_schema = selected_property_schema(attr_types, edge[1])
                     edge_attributes[edge[0][1]] = (edge[1], attr_schema)
                 else:
-                    raise InvalidArgumentError(
-                        "The edge parameter is in bad format: %s" % edge
-                    )
+                    raise InvalidArgumentError(f"The edge parameter is in bad format: {edge}")
 
         split_groups = collections.defaultdict(list)
         if gen_labels is not None:
             for label in gen_labels:
-                if len(label) == 3 or len(label) == 4:
+                if len(label) in {3, 4}:
                     split_groups[label[1]].append(label)
                 else:
-                    raise InvalidArgumentError(
-                        "Bad gen_labels arguments: %s" % gen_labels
-                    )
+                    raise InvalidArgumentError(f"Bad gen_labels arguments: {gen_labels}")
 
         split_labels = []
         for label, group in split_groups.items():
             lengths = [len(split) for split in group]
-            check_argument(
-                lengths[:-1] == lengths[1:], "Invalid gen labels: %s" % group
-            )
+            check_argument(lengths[:-1] == lengths[1:], f"Invalid gen labels: {group}")
             if len(group[0]) == 3:
                 length_sum = sum(split[2] for split in group)
                 s, ss = 0, []
@@ -246,8 +237,8 @@ class Graph(GLGraph):
                 split_labels.append(split)
 
         return {
-            "nodes": node_names if node_names else None,
-            "edges": edge_names if edge_names else None,
+            "nodes": node_names or None,
+            "edges": edge_names or None,
             "node_attributes": node_attributes,
             "edge_attributes": edge_attributes,
             "gen_labels": split_labels,

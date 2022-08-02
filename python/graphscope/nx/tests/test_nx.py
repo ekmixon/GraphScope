@@ -164,18 +164,19 @@ def ldbc_sample_multi_labels(prefix, directed):
 
 
 def load_p2p(prefix, directed):
-    graph = graphscope.load_from(
+    return graphscope.load_from(
         edges={
             "group": {
                 "loader": Loader(
-                    os.path.join(prefix, "p2p-31.e"), header_row=False, delimiter=" "
+                    os.path.join(prefix, "p2p-31.e"),
+                    header_row=False,
+                    delimiter=" ",
                 )
             }
         },
         directed=directed,
         generate_eid=False,
     )
-    return graph
 
 
 @pytest.mark.usefixtures("graphscope_session")

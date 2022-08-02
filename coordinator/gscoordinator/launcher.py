@@ -165,8 +165,8 @@ class LocalLauncher(Launcher):
         dir = os.path.dirname(path)
         for host in self._hosts.split(","):
             if host not in ("localhost", "127.0.0.1"):
-                subprocess.check_call(["ssh", host, "mkdir -p {}".format(dir)])
-                subprocess.check_call(["scp", path, "{}:{}".format(host, path)])
+                subprocess.check_call(["ssh", host, f"mkdir -p {dir}"])
+                subprocess.check_call(["scp", path, f"{host}:{path}"])
 
     def poll(self):
         if self._analytical_engine_process:
@@ -190,11 +190,10 @@ class LocalLauncher(Launcher):
         return self._zookeeper_port
 
     def get_engine_config(self):
-        config = {
+        return {
             "engine_hosts": self.hosts,
             "mars_endpoint": None,
         }
-        return config
 
     def get_vineyard_stream_info(self):
         return "ssh", self._hosts.split(",")
@@ -217,9 +216,7 @@ class LocalLauncher(Launcher):
             engine_params = json.loads(
                 config[types_pb2.GIE_GREMLIN_ENGINE_PARAMS].s.decode()
             )
-        engine_params = [
-            "{}:{}".format(key, value) for key, value in engine_params.items()
-        ]
+        engine_params = [f"{key}:{value}" for key, value in engine_params.items()]
         enable_gaia = config[types_pb2.GIE_ENABLE_GAIA].b
         env = os.environ.copy()
         env.update({"GRAPHSCOPE_HOME": GRAPHSCOPE_HOME})
@@ -229,14 +226,15 @@ class LocalLauncher(Launcher):
             self._session_workspace,
             str(object_id),
             schema_path,
-            "1",  # server id
+            "1",
             self.vineyard_socket,
             str(self.zookeeper_port),
-            "{}".format(";".join(engine_params)),
+            f'{";".join(engine_params)}',
             str(enable_gaia),
         ]
+
         logger.info("Create GIE instance with command: %s", " ".join(cmd))
-        process = subprocess.Popen(
+        return subprocess.Popen(
             cmd,
             start_new_session=True,
             cwd=os.getcwd(),
@@ -248,7 +246,6 @@ class LocalLauncher(Launcher):
             stderr=subprocess.STDOUT,
             bufsize=1,
         )
-        return process
 
     def close_interactive_instance(self, object_id):
         env = os.environ.copy()
@@ -260,7 +257,7 @@ class LocalLauncher(Launcher):
             str(object_id),
         ]
         logger.info("Close GIE instance with command: %s", " ".join(cmd))
-        process = subprocess.Popen(
+        return subprocess.Popen(
             cmd,
             start_new_session=True,
             cwd=os.getcwd(),
@@ -272,7 +269,6 @@ class LocalLauncher(Launcher):
             stderr=subprocess.STDOUT,
             bufsize=1,
         )
-        return process
 
     def _launch_etcd(self):
         etcd_exec = shutil.which("etcd")
@@ -340,10 +336,11 @@ class LocalLauncher(Launcher):
         cmd = [
             zetcd_exec,
             "--zkaddr",
-            "0.0.0.0:{}".format(self._zookeeper_port),
+            f"0.0.0.0:{self._zookeeper_port}",
             "--endpoints",
             "localhost:{0}".format(self._etcd_client_port),
         ]
+
 
         process = subprocess.Popen(
             cmd,
@@ -489,9 +486,11 @@ class LocalLauncher(Launcher):
         # prepare argument
         handle = json.loads(base64.b64decode(handle.encode("utf-8")).decode("utf-8"))
 
-        server_list = []
-        for i in range(self._num_workers):
-            server_list.append(f"localhost:{str(get_free_port('localhost'))}")
+        server_list = [
+            f"localhost:{str(get_free_port('localhost'))}"
+            for _ in range(self._num_workers)
+        ]
+
         hosts = ",".join(server_list)
         handle["server"] = hosts
         handle = base64.b64encode(json.dumps(handle).encode("utf-8")).decode("utf-8")

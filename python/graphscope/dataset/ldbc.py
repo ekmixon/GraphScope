@@ -317,7 +317,7 @@ def load_ldbc(sess=None, prefix=None, directed=True):
             file_hash="1a3d3c36fbf416c2a02ca4163734192eed602649220d7ceef2735fc11173fc6c",
         )
         # assumed dirname is ldbc_sample after extracting from ldbc_sample.tar.gz
-        prefix = fpath[0:-7]
+        prefix = fpath[:-7]
 
     if sess is None:
         sess = get_default_session()

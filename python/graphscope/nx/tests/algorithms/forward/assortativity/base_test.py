@@ -22,14 +22,14 @@ import graphscope.nx as nx
 
 
 class BaseTestAttributeMixing:
-    def setup_method(cls):
+    def setup_method(self):
         G = nx.Graph()
         G.add_nodes_from([0, 1], fish='one')
         G.add_nodes_from([2, 3], fish='two')
         G.add_nodes_from([4], fish='red')
         G.add_nodes_from([5], fish='blue')
         G.add_edges_from([(0, 1), (2, 3), (0, 4), (2, 5)])
-        cls.G = G
+        self.G = G
 
         D = nx.DiGraph()
         D.add_nodes_from([0, 1], fish='one')
@@ -37,7 +37,7 @@ class BaseTestAttributeMixing:
         D.add_nodes_from([4], fish='red')
         D.add_nodes_from([5], fish='blue')
         D.add_edges_from([(0, 1), (2, 3), (0, 4), (2, 5)])
-        cls.D = D
+        self.D = D
 
         S = nx.Graph()
         S.add_nodes_from([0, 1], fish='one')
@@ -46,13 +46,13 @@ class BaseTestAttributeMixing:
         S.add_nodes_from([5], fish='blue')
         S.add_edge(0, 0)
         S.add_edge(2, 2)
-        cls.S = S
+        self.S = S
 
 
 class BaseTestDegreeMixing:
-    def setup_method(cls):
-        cls.P4 = nx.path_graph(4)
-        cls.D = nx.DiGraph()
-        cls.D.add_edges_from([(0, 2), (0, 3), (1, 3), (2, 3)])
-        cls.S = nx.Graph()
-        cls.S.add_edges_from([(0, 0), (1, 1)])
+    def setup_method(self):
+        self.P4 = nx.path_graph(4)
+        self.D = nx.DiGraph()
+        self.D.add_edges_from([(0, 2), (0, 3), (1, 3), (2, 3)])
+        self.S = nx.Graph()
+        self.S.add_edges_from([(0, 0), (1, 1)])

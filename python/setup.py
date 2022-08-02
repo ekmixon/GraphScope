@@ -64,16 +64,14 @@ class FormatAndLint(Command):
         self.inplace = False
 
     def finalize_options(self):
-        if self.inplace or self.inplace == "True" or self.inplace == "true":
-            self.inplace = True
-        else:
-            self.inplace = False
+        self.inplace = bool(
+            self.inplace or self.inplace == "True" or self.inplace == "true"
+        )
 
     def run(self):
         if self.inplace:
             subprocess.check_call(["python3", "-m", "isort", "."], cwd=repo_root)
             subprocess.check_call(["python3", "-m", "black", "."], cwd=repo_root)
-            subprocess.check_call(["python3", "-m", "flake8", "."], cwd=repo_root)
         else:
             subprocess.check_call(
                 ["python3", "-m", "isort", "--check", "--diff", "."], cwd=repo_root
@@ -81,7 +79,8 @@ class FormatAndLint(Command):
             subprocess.check_call(
                 ["python3", "-m", "black", "--check", "--diff", "."], cwd=repo_root
             )
-            subprocess.check_call(["python3", "-m", "flake8", "."], cwd=repo_root)
+
+        subprocess.check_call(["python3", "-m", "flake8", "."], cwd=repo_root)
 
 
 class CustomBuildPy(build_py):
@@ -134,10 +133,7 @@ def learning_engine_enabled():
     if os.environ.get("WITH_LEARNING_ENGINE") != "ON":
         return False
 
-    if sys.platform != "linux" and sys.platform != "linux2":
-        return False
-
-    return True
+    return sys.platform in ["linux", "linux2"]
 
 
 def parsed_reqs():
@@ -153,21 +149,16 @@ def parsed_dev_reqs():
 
 
 def find_graphscope_packages():
-    packages = []
-
-    # add graphscope
-    for pkg in find_packages("."):
-        if "tests" not in pkg:
-            packages.append(pkg)
+    packages = [pkg for pkg in find_packages(".") if "tests" not in pkg]
 
     # add tests
-    for pkg in find_packages("tests"):
-        packages.append("graphscope.tests.%s" % pkg)
-
+    packages.extend(f"graphscope.tests.{pkg}" for pkg in find_packages("tests"))
     # add graphlearn
     if learning_engine_enabled():
-        for pkg in find_packages("../learning_engine/graph-learn"):
-            packages.append("graphscope.learning.%s" % pkg)
+        packages.extend(
+            f"graphscope.learning.{pkg}"
+            for pkg in find_packages("../learning_engine/graph-learn")
+        )
 
     return packages
 
@@ -178,12 +169,11 @@ def resolve_graphscope_package_dir():
         "graphscope.tests": "tests",
     }
     if learning_engine_enabled():
-        package_dir.update(
-            {
-                "graphscope.learning.examples": "../learning_engine/graph-learn/examples",
-                "graphscope.learning.graphlearn": "../learning_engine/graph-learn/graphlearn",
-            }
-        )
+        package_dir |= {
+            "graphscope.learning.examples": "../learning_engine/graph-learn/examples",
+            "graphscope.learning.graphlearn": "../learning_engine/graph-learn/graphlearn",
+        }
+
     return package_dir
 
 
@@ -197,32 +187,26 @@ def build_learning_engine():
         os.path.join(repo_root, "..", "learning_engine", "graph-learn")
     )
 
-    include_dirs = []
-    library_dirs = []
-    libraries = []
-    extra_compile_args = []
     extra_link_args = []
 
-    include_dirs.append(ROOT_PATH)
-    include_dirs.append(ROOT_PATH + "/graphlearn/include")
-    include_dirs.append(ROOT_PATH + "/built")
-    include_dirs.append(ROOT_PATH + "/third_party/pybind11/pybind11/include")
-    include_dirs.append(ROOT_PATH + "/third_party/glog/build")
-    include_dirs.append(ROOT_PATH + "/third_party/protobuf/build/include")
-    include_dirs.append(numpy.get_include())
-
-    library_dirs.append(ROOT_PATH + "/built/lib")
-
-    extra_compile_args.append("-D__USE_XOPEN2K8")
-    extra_compile_args.append("-std=c++11")
-    extra_compile_args.append("-fvisibility=hidden")
-
-    libraries.append("graphlearn_shared")
-
-    sources = [
-        ROOT_PATH + "/graphlearn/python/py_export.cc",
-        ROOT_PATH + "/graphlearn/python/py_client.cc",
+    include_dirs = [
+        ROOT_PATH,
+        f"{ROOT_PATH}/graphlearn/include",
+        f"{ROOT_PATH}/built",
+        f"{ROOT_PATH}/third_party/pybind11/pybind11/include",
+        f"{ROOT_PATH}/third_party/glog/build",
+        f"{ROOT_PATH}/third_party/protobuf/build/include",
+        numpy.get_include(),
     ]
+
+    library_dirs = [f"{ROOT_PATH}/built/lib"]
+    extra_compile_args = ["-D__USE_XOPEN2K8", "-std=c++11", "-fvisibility=hidden"]
+    libraries = ["graphlearn_shared"]
+    sources = [
+        f"{ROOT_PATH}/graphlearn/python/py_export.cc",
+        f"{ROOT_PATH}/graphlearn/python/py_client.cc",
+    ]
+
     ext = Extension(
         "graphscope.learning.graphlearn.pywrap_graphlearn",
         sources,

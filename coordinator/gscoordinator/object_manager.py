@@ -47,12 +47,11 @@ class InteractiveQueryManager(object):
         self.closed = False
 
     def submit(self, message, bindings=None, request_options=None, query_gaia=False):
-        if query_gaia:
-            if len(self.clients) != 2:
-                raise ValueError("Gaia endpoint is not found.")
-            return self.clients[1].submit(message, bindings, request_options)
-        else:
+        if not query_gaia:
             return self.clients[0].submit(message, bindings, request_options)
+        if len(self.clients) != 2:
+            raise ValueError("Gaia endpoint is not found.")
+        return self.clients[1].submit(message, bindings, request_options)
 
     def close(self):
         for client in self.clients:

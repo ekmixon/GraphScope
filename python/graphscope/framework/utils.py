@@ -79,12 +79,11 @@ def random_string(nlen):
 
 def read_file_to_bytes(file_path):
     abs_dir = os.path.abspath(os.path.expanduser(file_path))
-    if os.path.isfile(abs_dir):
-        with open(abs_dir, "rb") as b:
-            content = b.read()
-        return content
-    else:
+    if not os.path.isfile(abs_dir):
         raise IOError("No such file: " + file_path)
+    with open(abs_dir, "rb") as b:
+        content = b.read()
+    return content
 
 
 def i_to_attr(i: int) -> attr_value_pb2.AttrValue:
@@ -173,16 +172,13 @@ def pack(v):
     elif isinstance(v, bytes):
         param.Pack(data_types_pb2.BytesValue(value=v))
     else:
-        raise ValueError("Wrong type of query param {}".format(type(v)))
+        raise ValueError(f"Wrong type of query param {type(v)}")
     return param
 
 
 def pack_query_params(*args, **kwargs):
-    params = []
-    for i in args:
-        params.append(pack(i))
-    for k, v in kwargs.items():
-        params.append(pack(v))
+    params = [pack(i) for i in args]
+    params.extend(pack(v) for k, v in kwargs.items())
     return params
 
 
@@ -190,14 +186,14 @@ def is_numpy(*args):
     """Check if the input type is numpy.ndarray."""
     for arg in args:
         if arg is not None and not isinstance(arg, np.ndarray):
-            raise ValueError("The parameter %s should be a numpy ndarray" % arg)
+            raise ValueError(f"The parameter {arg} should be a numpy ndarray")
 
 
 def is_file(*args):
     """Check if the input type is file."""
     for arg in args:
         if arg is not None and not isinstance(arg, str):
-            raise ValueError("the parameter %s should be a file path" % arg)
+            raise ValueError(f"the parameter {arg} should be a file path")
 
 
 def _context_protocol_to_numpy_dtype(dtype):
@@ -213,7 +209,7 @@ def _context_protocol_to_numpy_dtype(dtype):
     }
     npdtype = dtype_map.get(dtype)
     if npdtype is None:
-        raise NotImplementedError("Don't support type {}".format(dtype))
+        raise NotImplementedError(f"Don't support type {dtype}")
     return npdtype
 
 
@@ -222,16 +218,12 @@ def decode_numpy(value):
         raise RuntimeError("Value to decode should not be empty")
     archive = OutArchive(value)
     shape_size = archive.get_size()
-    shape = []
-    for i in range(shape_size):
-        shape.append(archive.get_size())
+    shape = [archive.get_size() for _ in range(shape_size)]
     dtype = _context_protocol_to_numpy_dtype(archive.get_int())
     array_size = archive.get_size()
     check_argument(array_size == np.prod(shape))
     if dtype is object:
-        data_copy = []
-        for i in range(array_size):
-            data_copy.append(archive.get_string())
+        data_copy = [archive.get_string() for _ in range(array_size)]
         array = np.array(data_copy, dtype=dtype)
     else:
         array = np.ndarray(
@@ -251,13 +243,11 @@ def decode_dataframe(value):
     row_num = archive.get_size()
     arrays = {}
 
-    for i in range(column_num):
+    for _ in range(column_num):
         col_name = archive.get_string()
         dtype = _context_protocol_to_numpy_dtype(archive.get_int())
         if dtype is object:
-            data_copy = []
-            for i in range(row_num):
-                data_copy.append(archive.get_string())
+            data_copy = [archive.get_string() for _ in range(row_num)]
             array = np.array(data_copy, dtype=dtype)
         else:
             array = np.ndarray(
@@ -303,7 +293,7 @@ def _unify_str_type(t):
         return graph_def_pb2.DataTypePb.DOUBLE_LIST
     elif t in ("empty", "grape::emptytype"):
         return graph_def_pb2.NULLVALUE
-    raise TypeError("Not supported type {}".format(t))
+    raise TypeError(f"Not supported type {t}")
 
 
 def unify_type(t):
@@ -323,7 +313,7 @@ def unify_type(t):
         return unify_types[t]
     elif isinstance(t, int):  # graph_def_pb2.DataType
         return t
-    raise TypeError("Not supported type {}".format(t))
+    raise TypeError(f"Not supported type {t}")
 
 
 def data_type_to_cpp(t):
@@ -347,7 +337,7 @@ def data_type_to_cpp(t):
         return "folly::dynamic"
     elif t == graph_def_pb2.UNKNOWN:
         return ""
-    raise ValueError("Not support type {}".format(t))
+    raise ValueError(f"Not support type {t}")
 
 
 def data_type_to_python(t):
@@ -364,7 +354,7 @@ def data_type_to_python(t):
         return str
     elif t in (None, t == graph_def_pb2.NULLVALUE):
         return None
-    raise ValueError("Not support type {}".format(t))
+    raise ValueError(f"Not support type {t}")
 
 
 def normalize_data_type_str(data_type):
@@ -388,10 +378,7 @@ def normalize_data_type_str(data_type):
 
 
 def transform_vertex_range(vertex_range):
-    if vertex_range:
-        return json.dumps(vertex_range)
-    else:
-        return None
+    return json.dumps(vertex_range) if vertex_range else None
 
 
 def _from_numpy_dtype(dtype):
@@ -412,7 +399,7 @@ def _from_numpy_dtype(dtype):
     }
     pbdtype = dtype_reverse_map.get(dtype)
     if pbdtype is None:
-        raise NotImplementedError("Do not support type {}".format(dtype))
+        raise NotImplementedError(f"Do not support type {dtype}")
     return pbdtype
 
 
@@ -434,5 +421,5 @@ def _to_numpy_dtype(dtype):
     }
     npdtype = dtype_map.get(dtype)
     if npdtype is None:
-        raise NotImplementedError("Do not support type {}".format(dtype))
+        raise NotImplementedError(f"Do not support type {dtype}")
     return npdtype

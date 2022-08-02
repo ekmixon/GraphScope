@@ -37,8 +37,8 @@ class Dag(object):
         # the order in which op joins the dag, starting by 1.
         self._seq = 1
         #  mapping from op's key to op
-        self._ops_by_key = dict()
-        self._ops_seq_by_key = dict()
+        self._ops_by_key = {}
+        self._ops_seq_by_key = {}
 
     def __str__(self):
         return str(self.as_dag_def())
@@ -75,10 +75,10 @@ class Dag(object):
         if len(ops) == 1 and ops[0].is_leaf_op():
             out.op.extend([ops[0].as_op_def()])
             return out
-        op_keys = list()
+        op_keys = []
         # assert op is not present in current dag
         for op in ops:
-            assert op.key in self._ops_by_key, "%s is not in the dag" % op.key
+            assert op.key in self._ops_by_key, f"{op.key} is not in the dag"
             assert not self._ops_by_key[op.key].evaluated, "%is is evaluated" % op.key
             op_keys.append(op.key)
         op_keys_to_keep = self._bfs_for_reachable_ops(op_keys)

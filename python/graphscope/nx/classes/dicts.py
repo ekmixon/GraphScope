@@ -70,10 +70,7 @@ class NodeAttrDict(MutableMapping):
     def __init__(self, graph, node, data=None):
         self._graph = graph
         self._node = node
-        if data:
-            self.mapping = data
-        else:
-            self.mapping = graph.get_node_data(node)
+        self.mapping = data or graph.get_node_data(node)
 
     def __len__(self):
         return len(self.mapping)

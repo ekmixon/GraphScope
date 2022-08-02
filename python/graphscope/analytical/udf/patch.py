@@ -24,7 +24,7 @@ import functools
 from Cython.CodeWriter import CodeWriter
 
 
-def patch_cython_codewriter(writer):  # noqa: C901
+def patch_cython_codewriter(writer):    # noqa: C901
     """Patch for Cython CodeWriter.
 
        See also: https://github.com/cython/cython/pull/3907
@@ -309,7 +309,7 @@ def patch_cython_codewriter(writer):  # noqa: C901
 
     # 13
     def visit_CascadedCmpNode(self, node):
-        self.put(u" %s " % node.operator)
+        self.put(f" {node.operator} ")
         self.visit(node.operand2)
         if node.cascade:
             # recursion

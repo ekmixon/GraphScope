@@ -67,7 +67,7 @@ def load_modern_graph(sess=None, prefix=None, directed=True):
             file_hash="a67c02191ea9dfa618a83d94087349a25937b92973f42206a28fdf6fa5299dec",
         )
         # assumed dirname is modern_graph after extracting from modern_graph.tar.gz
-        prefix = fpath[0:-7]
+        prefix = fpath[:-7]
 
     if sess is None:
         sess = get_default_session()
